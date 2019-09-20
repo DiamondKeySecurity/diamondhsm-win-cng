@@ -1,0 +1,70 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2026
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "diamondhsm-cng-ksp", "diamondhsm-cng-ksp\diamondhsm-cng-ksp.vcxproj", "{72F43459-E59E-4705-9509-14C7860A148C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29} = {61BAD6E0-3EF8-44B2-8575-8B325B163F29}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dll_import_test", "dll_import_test\dll_import_test.vcxproj", "{245D3B22-2D94-442F-886F-6EC91BD82DBD}"
+	ProjectSection(ProjectDependencies) = postProject
+		{72F43459-E59E-4705-9509-14C7860A148C} = {72F43459-E59E-4705-9509-14C7860A148C}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptech-libhal", "cryptech-libhal\cryptech-libhal.vcxproj", "{61BAD6E0-3EF8-44B2-8575-8B325B163F29}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptech-libhal-test", "cryptech-libhal-test\cryptech-libhal-test.vcxproj", "{E6794244-CDAA-40F5-8071-D67C7ED57E51}"
+	ProjectSection(ProjectDependencies) = postProject
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29} = {61BAD6E0-3EF8-44B2-8575-8B325B163F29}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{72F43459-E59E-4705-9509-14C7860A148C}.Debug|x64.ActiveCfg = Debug|x64
+		{72F43459-E59E-4705-9509-14C7860A148C}.Debug|x64.Build.0 = Debug|x64
+		{72F43459-E59E-4705-9509-14C7860A148C}.Debug|x86.ActiveCfg = Debug|Win32
+		{72F43459-E59E-4705-9509-14C7860A148C}.Debug|x86.Build.0 = Debug|Win32
+		{72F43459-E59E-4705-9509-14C7860A148C}.Release|x64.ActiveCfg = Release|x64
+		{72F43459-E59E-4705-9509-14C7860A148C}.Release|x64.Build.0 = Release|x64
+		{72F43459-E59E-4705-9509-14C7860A148C}.Release|x86.ActiveCfg = Release|Win32
+		{72F43459-E59E-4705-9509-14C7860A148C}.Release|x86.Build.0 = Release|Win32
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Debug|x64.ActiveCfg = Debug|x64
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Debug|x64.Build.0 = Debug|x64
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Debug|x86.ActiveCfg = Debug|Win32
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Debug|x86.Build.0 = Debug|Win32
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Release|x64.ActiveCfg = Release|x64
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Release|x64.Build.0 = Release|x64
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Release|x86.ActiveCfg = Release|Win32
+		{245D3B22-2D94-442F-886F-6EC91BD82DBD}.Release|x86.Build.0 = Release|Win32
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Debug|x64.ActiveCfg = Debug|x64
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Debug|x64.Build.0 = Debug|x64
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Debug|x86.ActiveCfg = Debug|Win32
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Debug|x86.Build.0 = Debug|Win32
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Release|x64.ActiveCfg = Release|x64
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Release|x64.Build.0 = Release|x64
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Release|x86.ActiveCfg = Release|Win32
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29}.Release|x86.Build.0 = Release|Win32
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Debug|x64.ActiveCfg = Debug|x64
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Debug|x64.Build.0 = Debug|x64
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Debug|x86.ActiveCfg = Debug|Win32
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Debug|x86.Build.0 = Debug|Win32
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x64.ActiveCfg = Release|x64
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x64.Build.0 = Release|x64
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x86.ActiveCfg = Release|Win32
+		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1B7467B0-6199-433A-B867-81F817A07C66}
+	EndGlobalSection
+EndGlobal
