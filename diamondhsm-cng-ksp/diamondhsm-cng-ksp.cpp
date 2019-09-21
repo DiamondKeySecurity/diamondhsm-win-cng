@@ -4,6 +4,7 @@
 #include "stdafx.h"
 
 #include "diamondhsm-cng-ksp.h"
+#include "internal.h"
 
 NCRYPT_KEY_STORAGE_FUNCTION_TABLE FunctionTable =
 {
@@ -75,7 +76,57 @@ SECURITY_STATUS WINAPI OpenProvider(
 	_In_opt_ LPCWSTR pszProviderName,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+	SECURITY_STATUS status = NTE_INTERNAL_ERROR;
+	DKEY_KSP_PROVIDER *pProvider = NULL;
+	DWORD cbLength = 0;
+	size_t cbProviderName = 0;
+	UNREFERENCED_PARAMETER(dwFlags);
+
+	// Validate input parameters.
+	if (phProvider == NULL)
+	{
+		status = NTE_INVALID_PARAMETER;
+		goto cleanup;
+	}
+	if (pszProviderName == NULL)
+	{
+		status = NTE_INVALID_PARAMETER;
+		goto cleanup;
+	}
+
+	// check for a valid provider name
+	if (wcscmp(pszProviderName, DKEY_KSP_PROVIDER_NAME) != 0)
+	{
+		status = NTE_INVALID_PARAMETER;
+		goto cleanup;
+	}
+
+	// Allocate memory for provider object.
+	cbLength = sizeof(DKEY_KSP_PROVIDER);
+	pProvider = (DKEY_KSP_PROVIDER*)HeapAlloc(GetProcessHeap(), 0, cbLength);;
+	if (NULL == pProvider)
+	{
+		status = NTE_NO_MEMORY;
+		goto cleanup;
+	}
+
+	//Assign values to fields of the provider handle.
+	pProvider->cbLength = cbLength;
+	pProvider->dwMagic = DKEY_KSP_PROVIDER_MAGIC;
+	pProvider->dwFlags = 0;
+	pProvider->pszContext = NULL;
+	pProvider->hal_user = HAL_USER_NORMAL;
+
+	//Assign the output value.
+	*phProvider = (NCRYPT_PROV_HANDLE)pProvider;
+	pProvider = NULL;
+	status = ERROR_SUCCESS;
+cleanup:
+	if (pProvider)
+	{
+		HeapFree(GetProcessHeap(), 0, pProvider);
+	}
+	return status;
 }
 
 // Opens an existing key.It is implemented by your key storage provider(KSP) and called by the NCryptOpenKey function.
@@ -415,7 +466,32 @@ SECURITY_STATUS WINAPI DeleteKey(
 SECURITY_STATUS WINAPI FreeProvider(
 	_In_    NCRYPT_PROV_HANDLE hProvider)
 {
-	return NTE_NOT_SUPPORTED;
+	SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+	DKEY_KSP_PROVIDER *pProvider = NULL;
+
+	// Validate input parameters.
+	pProvider = DKEYKspValidateProvHandle(hProvider);
+
+	if (pProvider == NULL)
+	{
+		Status = NTE_INVALID_HANDLE;
+		goto cleanup;
+	}
+
+	// Free context.
+	if (pProvider->pszContext)
+	{
+		HeapFree(GetProcessHeap(), 0, pProvider->pszContext);
+		pProvider->pszContext = NULL;
+	}
+
+	ZeroMemory(pProvider, pProvider->cbLength);
+	HeapFree(GetProcessHeap(), 0, pProvider);
+
+	Status = ERROR_SUCCESS;
+cleanup:
+
+	return Status;
 }
 
 // Frees an object handle created by the provider. It is implemented by your key storage provider (KSP) and called by the NCryptFreeObject function.

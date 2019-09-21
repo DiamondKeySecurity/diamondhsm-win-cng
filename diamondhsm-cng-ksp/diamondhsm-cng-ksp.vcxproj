@@ -163,13 +163,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="diamondhsm-ksp.h" />
+    <ClInclude Include="internal.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="diamondhsm-cng-ksp.cpp" />
+    <ClCompile Include="dkey_ksp_helper.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="diamondhsm-cng-ksp.h" />
+    <ClCompile Include="internal.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

@@ -2,6 +2,8 @@
 
 #include "stdafx.h"
 
+#include "diamondhsm-ksp.h"
+
 // Initializes the provider.It is implemented by your key storage provider(KSP) and called by the NCryptOpenStorageProvider function.
 // Parameters
 // phProvider[out] - A pointer to a NCRYPT_PROV_HANDLE variable that receives the provider handle.
