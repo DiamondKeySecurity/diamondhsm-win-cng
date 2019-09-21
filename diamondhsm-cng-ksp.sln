@@ -11,6 +11,7 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dll_import_test", "dll_import_test\dll_import_test.vcxproj", "{245D3B22-2D94-442F-886F-6EC91BD82DBD}"
 	ProjectSection(ProjectDependencies) = postProject
 		{72F43459-E59E-4705-9509-14C7860A148C} = {72F43459-E59E-4705-9509-14C7860A148C}
+		{61BAD6E0-3EF8-44B2-8575-8B325B163F29} = {61BAD6E0-3EF8-44B2-8575-8B325B163F29}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptech-libhal", "cryptech-libhal\cryptech-libhal.vcxproj", "{61BAD6E0-3EF8-44B2-8575-8B325B163F29}"
