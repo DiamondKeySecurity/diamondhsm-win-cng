@@ -6,6 +6,12 @@
 #include "diamondhsm-cng-ksp.h"
 #include "internal.h"
 
+extern "C"
+{
+#include "../cryptech-libhal/hal.h"
+#include "../cryptech-libhal/hal_internal.h"
+}
+
 NCRYPT_KEY_STORAGE_FUNCTION_TABLE FunctionTable =
 {
 	NCRYPT_KEY_STORAGE_INTERFACE_VERSION,
@@ -37,7 +43,7 @@ NCRYPT_KEY_STORAGE_FUNCTION_TABLE FunctionTable =
 	FreeSecret
 };
 
-NTSTATUS WINAPI GetKeyStorageInterface(
+_Check_return_ NTSTATUS WINAPI GetKeyStorageInterface(
 	_In_   LPCWSTR pszProviderName,
 	_Out_  NCRYPT_KEY_STORAGE_FUNCTION_TABLE **ppFunctionTable,
 	_In_   DWORD dwFlags
@@ -80,6 +86,7 @@ SECURITY_STATUS WINAPI OpenProvider(
 	DKEY_KSP_PROVIDER *pProvider = NULL;
 	DWORD cbLength = 0;
 	size_t cbProviderName = 0;
+    void *conn_context = NULL;
 	UNREFERENCED_PARAMETER(dwFlags);
 
 	// Validate input parameters.
@@ -116,6 +123,24 @@ SECURITY_STATUS WINAPI OpenProvider(
 	pProvider->dwFlags = 0;
 	pProvider->pszContext = NULL;
 	pProvider->hal_user = HAL_USER_NORMAL;
+    pProvider->client = hal_client_handle_t{ 0 };
+
+    // connect to the HSM
+    hal_error_t err;
+    if ((err = hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm", &conn_context)) != HAL_OK)
+    {
+        status = NTE_DEVICE_NOT_FOUND;
+        goto cleanup;
+    }
+
+    // save the context
+    pProvider->conn_context = conn_context;
+
+    if ((err = hal_rpc_login(pProvider->conn_context, pProvider->client, HAL_USER_NORMAL, DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()))) != HAL_OK)
+    {
+        status = NTE_VALIDATION_FAILED;
+        goto cleanup;
+    }
 
 	//Assign the output value.
 	*phProvider = (NCRYPT_PROV_HANDLE)pProvider;
@@ -126,6 +151,10 @@ cleanup:
 	{
 		HeapFree(GetProcessHeap(), 0, pProvider);
 	}
+    if (status != ERROR_SUCCESS && NULL != conn_context)
+    {
+        hal_rpc_client_transport_close(conn_context);
+    }
 	return status;
 }
 
@@ -477,6 +506,11 @@ SECURITY_STATUS WINAPI FreeProvider(
 		Status = NTE_INVALID_HANDLE;
 		goto cleanup;
 	}
+
+    // log out and disconnect
+    hal_rpc_logout(pProvider->conn_context, pProvider->client);
+
+    hal_rpc_client_transport_close(pProvider->conn_context);
 
 	// Free context.
 	if (pProvider->pszContext)

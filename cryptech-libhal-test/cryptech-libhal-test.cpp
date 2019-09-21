@@ -529,7 +529,7 @@ int main()
 {
 	const hal_client_handle_t client = { HAL_HANDLE_NONE };
 	const char *pin = "1234";
-	const char *ipaddr = "10.1.10.9";
+	const char *ipaddr = "10.0.0.37";
 
     void *conn_context;
 

@@ -6,6 +6,8 @@
 LPCSTR DKEYKspGetUserPin();
 LPCSTR DKEYKspGetHostAddr();
 
+SECURITY_STATUS NormalizeNteStatus(__in NTSTATUS NtStatus);
+
 DKEY_KSP_PROVIDER *DKEYKspValidateProvHandle(
 	__in    NCRYPT_PROV_HANDLE hProvider);
 

@@ -7,5 +7,5 @@ LPCSTR DKEYKspGetUserPin()
 
 LPCSTR DKEYKspGetHostAddr()
 {
-	return "10.1.10.9";
+	return "10.0.0.37";
 }

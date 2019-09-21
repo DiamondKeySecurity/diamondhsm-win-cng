@@ -67,6 +67,8 @@ typedef __struct_bcount(sizeof(DKEY_KSP_PROVIDER)) struct _DKEY_KSP_PROVIDER
 	DWORD               dwFlags;    //reserved flags
 	LPWSTR              pszContext; //context
 	hal_user_t          hal_user;
+    hal_client_handle_t client;
+    void               *conn_context;
 }DKEY_KSP_PROVIDER;
 
 //key handle
