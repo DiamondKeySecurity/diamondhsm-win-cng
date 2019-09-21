@@ -90,9 +90,40 @@ void TestFunctionsExist(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 	std::cout << "FreeProvider returned " << status << std::endl;
 }
 
+void TestEnum(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
+{
+    SECURITY_STATUS status;
+    NCRYPT_PROV_HANDLE phProvider;
+
+    status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
+    std::cout << "OpenProvider returned " << status << std::endl;
+
+    NCryptAlgorithmName *pAlgList;
+    DWORD dwAlgCount;
+    status = pFunctionTable->EnumAlgorithms(phProvider, 0U, &dwAlgCount, &pAlgList, 0U);
+    std::cout << "EnumAlgorithms returned " << status << std::endl;
+    if (status == 0)
+    {
+        for (int i = 0; i < dwAlgCount; ++i)
+        {
+            char buffer[256];
+            size_t converted;
+            wcstombs_s(&converted, buffer, pAlgList[i].pszName, 256);
+            std::cout << "Algorithm: " << buffer << "; class == " << pAlgList[i].dwClass << "; op == " << pAlgList[i].dwAlgOperations << std::endl;
+        }
+    }
+
+    status = pFunctionTable->FreeProvider(phProvider);
+    std::cout << "FreeProvider returned " << status << std::endl;
+}
+
 void TestFunctions(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 {
+    std::cout << "Testing Function Existence" << std::endl;
 	TestFunctionsExist(pFunctionTable);
+
+    std::cout << "Testing Enum Functions" << std::endl;
+    TestEnum(pFunctionTable);
 }
 
 int main()

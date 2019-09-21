@@ -563,7 +563,19 @@ SECURITY_STATUS WINAPI FreeKey(
 SECURITY_STATUS WINAPI FreeBuffer(
 	_Pre_notnull_ PVOID   pvInput)
 {
-	return NTE_NOT_SUPPORTED;
+    if (NULL == pvInput)
+    {
+        return NTE_INVALID_PARAMETER;
+    }
+    //
+    // Free the buffer from the heap.
+    //
+
+    HeapFree(GetProcessHeap(), 0, pvInput);
+
+cleanup:
+
+    return ERROR_SUCCESS;
 }
 
 // Encrypts a block of data. It is implemented by your key storage provider (KSP) and called by the NCryptEncrypt function.
@@ -702,6 +714,20 @@ SECURITY_STATUS WINAPI IsAlgSupported(
 	return NTE_NOT_SUPPORTED;
 }
 
+void addalgtoEnum(NCryptAlgorithmName *&pCurrentAlg, PBYTE &pbCurrent, DWORD dwclass, DWORD dwAlgOperations, const wchar_t *name, size_t name_size)
+{
+    pCurrentAlg->dwFlags = 0;
+    pCurrentAlg->dwClass = dwclass;
+    pCurrentAlg->dwAlgOperations = dwAlgOperations;
+
+    pCurrentAlg->pszName = (LPWSTR)pbCurrent;
+    CopyMemory(pbCurrent,
+        name,
+        name_size);
+    pbCurrent += name_size;
+    ++pCurrentAlg;
+}
+
 // Enumerates the names of the algorithms supported by the provider. It is implemented by your key storage provider (KSP) and called by the NCryptEnumAlgorithms function.
 // Parameters
 // hProvider [in] - The handle of the key storage provider to enumerate the algorithms for.
@@ -733,13 +759,131 @@ SECURITY_STATUS WINAPI IsAlgSupported(
 //                  Note: If the calling application sets the dwFlags parameter to NCRYPT_SILENT_FLAG but your KSP requires that a user interface be displayed, the router fails and returns NTE_SILENT_CONTEXT to the caller.
 // NTE_NOT_SUPPORTED  Specifies that the function is not implemented.
 SECURITY_STATUS WINAPI EnumAlgorithms(
-	_In_    NCRYPT_PROV_HANDLE hProvider,
-	_In_    DWORD   dwAlgClass,
-	_Out_   DWORD * pdwAlgCount,
-	_Outptr_result_buffer_(*pdwAlgCount) NCryptAlgorithmName **ppAlgList,
-	_In_    DWORD   dwFlags)
+    _In_    NCRYPT_PROV_HANDLE hProvider,
+    _In_    DWORD   dwAlgClass,
+    _Out_   DWORD * pdwAlgCount,
+    _Outptr_result_buffer_(*pdwAlgCount) NCryptAlgorithmName **ppAlgList,
+    _In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    NCryptAlgorithmName *pCurrentAlg = NULL;
+    PBYTE pbCurrent = NULL;
+    PBYTE pbOutput = NULL;
+    DWORD cbOutput = 0;
+    DWORD count = 0;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pdwAlgCount == NULL || ppAlgList == NULL)
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    if ((dwFlags & ~NCRYPT_SILENT_FLAG) != 0)
+    {
+        Status = NTE_BAD_FLAGS;
+        goto cleanup;
+    }
+
+    // Get the size of the data that we need to create
+    // NCRYPT_HASH_OPERATION
+    if (dwAlgClass == 0 ||
+        ((dwAlgClass & NCRYPT_HASH_OPERATION) != 0))
+    {
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_SHA1_ALGORITHM);
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_SHA256_ALGORITHM);
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_SHA384_ALGORITHM);
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_SHA512_ALGORITHM);
+        count += 4;
+    }
+
+    // NCRYPT_SIGNATURE_OPERATION
+    // NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION
+    if (dwAlgClass == 0 ||
+        ((dwAlgClass & NCRYPT_SIGNATURE_OPERATION) != 0) ||
+        ((dwAlgClass & NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION) != 0))
+    {
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_RSA_ALGORITHM);
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_ECDSA_P256_ALGORITHM);
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_ECDSA_P384_ALGORITHM);
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_ECDSA_P521_ALGORITHM);
+
+        count += 4;
+    }
+
+    //NCRYPT_RNG_OPERATION
+    if (dwAlgClass == 0 ||
+        ((dwAlgClass & NCRYPT_RNG_OPERATION) != 0))
+    {
+        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_RNG_ALGORITHM);
+        count++;
+    }
+
+    if (cbOutput == 0)
+    {
+        Status = NTE_NOT_SUPPORTED;
+        goto cleanup;
+    }
+
+    //Allocate the output buffer.
+    pbOutput = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbOutput);
+    if (pbOutput == NULL)
+    {
+        Status = NTE_NO_MEMORY;
+        goto cleanup;
+    }
+
+    pCurrentAlg = (NCryptAlgorithmName *)pbOutput;
+    pbCurrent = pbOutput + (sizeof(NCryptAlgorithmName) * count);
+
+    if (dwAlgClass == 0 ||
+        ((dwAlgClass & NCRYPT_HASH_OPERATION) != 0))
+    {
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_HASH_INTERFACE, NCRYPT_HASH_OPERATION, BCRYPT_SHA1_ALGORITHM, sizeof(BCRYPT_SHA1_ALGORITHM));
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_HASH_INTERFACE, NCRYPT_HASH_OPERATION, BCRYPT_SHA256_ALGORITHM, sizeof(BCRYPT_SHA256_ALGORITHM));
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_HASH_INTERFACE, NCRYPT_HASH_OPERATION, BCRYPT_SHA384_ALGORITHM, sizeof(BCRYPT_SHA384_ALGORITHM));
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_HASH_INTERFACE, NCRYPT_HASH_OPERATION, BCRYPT_SHA512_ALGORITHM, sizeof(BCRYPT_SHA512_ALGORITHM));
+    }
+
+    // NCRYPT_SIGNATURE_OPERATION
+    // NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION
+    if (dwAlgClass == 0 ||
+        ((dwAlgClass & NCRYPT_SIGNATURE_OPERATION) != 0) ||
+        ((dwAlgClass & NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION) != 0))
+    {
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+                     BCRYPT_RSA_ALGORITHM, sizeof(BCRYPT_RSA_ALGORITHM));
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+                     BCRYPT_ECDSA_P256_ALGORITHM, sizeof(BCRYPT_ECDSA_P256_ALGORITHM));
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+                     BCRYPT_ECDSA_P384_ALGORITHM, sizeof(BCRYPT_ECDSA_P384_ALGORITHM));
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+                     BCRYPT_ECDSA_P521_ALGORITHM, sizeof(BCRYPT_ECDSA_P521_ALGORITHM));
+    }
+
+    //NCRYPT_RNG_OPERATION
+    if (dwAlgClass == 0 ||
+        ((dwAlgClass & NCRYPT_RNG_OPERATION) != 0))
+    {
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_RNG_OPERATION, NCRYPT_RNG_OPERATION, BCRYPT_RNG_ALGORITHM, sizeof(BCRYPT_RNG_ALGORITHM));
+    }
+    *pdwAlgCount = count;
+    *ppAlgList = (NCryptAlgorithmName *)pbOutput;
+
+    Status = ERROR_SUCCESS;
+
+cleanup:
+
+    return Status;
 }
 
 // Enumerates the names of the keys supported by the provider. It is implemented by your key storage provider (KSP) and called by the NCryptEnumKeys function.
