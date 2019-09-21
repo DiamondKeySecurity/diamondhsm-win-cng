@@ -740,7 +740,50 @@ SECURITY_STATUS WINAPI IsAlgSupported(
 	_In_    LPCWSTR pszAlgId,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pszAlgId == NULL)
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    if ((dwFlags & ~NCRYPT_SILENT_FLAG) != 0)
+    {
+        Status = NTE_BAD_FLAGS;
+        goto cleanup;
+    }
+
+
+    // This KSP only supports the RSA algorithm.
+    if ((wcscmp(pszAlgId, NCRYPT_RSA_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_SHA1_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_SHA256_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_SHA384_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_SHA512_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_ECDSA_P256_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_ECDSA_P384_ALGORITHM) == 0) ||
+        (wcscmp(pszAlgId, NCRYPT_ECDSA_P521_ALGORITHM) == 0))
+    {
+        Status = ERROR_SUCCESS;
+    }
+    else
+    {
+        Status = NTE_NOT_SUPPORTED;
+    }
+
+cleanup:
+    return Status;
 }
 
 void addalgtoEnum(NCryptAlgorithmName *&pCurrentAlg, PBYTE &pbCurrent, DWORD dwclass, DWORD dwAlgOperations, const wchar_t *name, size_t name_size)
@@ -960,7 +1003,13 @@ SECURITY_STATUS WINAPI EnumKeys(
     // Validate input parameters.
     pProvider = DKEYKspValidateProvHandle(hProvider);
 
-    if (NULL == pProvider || NULL == ppKeyName || NULL == ppEnumState)
+    if (NULL == pProvider)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if(NULL == ppKeyName || NULL == ppEnumState)
     {
         Status = NTE_INVALID_PARAMETER;
         goto cleanup;
