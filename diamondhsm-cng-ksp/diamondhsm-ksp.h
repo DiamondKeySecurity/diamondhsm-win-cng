@@ -3,6 +3,8 @@
 #include <ncrypt_provider.h>
 #include <bcrypt_provider.h>
 
+#include "../cryptech-libhal/hal.h"
+
 #define DKEY_KSP_INTERFACE_VERSION NCRYPT_KEY_STORAGE_INTERFACE_VERSION //version of the DKEY KSP interface
 #define DKEY_KSP_VERSION 0x00010000                         //version of the DKEY KSP
 #define DKEY_KSP_SUPPORT_SECURITY_DESCRIPTOR   0x00000001             //This DKEY KSP supports security descriptor
