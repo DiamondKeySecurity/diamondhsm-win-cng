@@ -1,6 +1,34 @@
+// Copyright 2019 Diamond Key Security, NFP
+// All Rights Reserved
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met :
+//
+// -Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// - Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// - Neither the name of the NORDUnet nor the names of its contributors may
+// be used to endorse or promote products derived from this software
+// without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+// IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+// PARTICULAR PURPOSE ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT
+// HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES(INCLUDING, BUT NOT LIMITED
+// TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT(INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // diamondhsm-cng-ksp.cpp : Defines the exported functions for the DLL application.
 //
-
 #include "stdafx.h"
 
 #include "diamondhsm-cng-ksp.h"
@@ -123,7 +151,8 @@ SECURITY_STATUS WINAPI OpenProvider(
 	pProvider->dwFlags = 0;
 	pProvider->pszContext = NULL;
 	pProvider->hal_user = HAL_USER_NORMAL;
-    pProvider->client = hal_client_handle_t{ 0 };
+    pProvider->client = hal_client_handle_t { 0 };
+    pProvider->session = hal_session_handle_t { 0 };
 
     // connect to the HSM
     hal_error_t err;
@@ -809,8 +838,7 @@ SECURITY_STATUS WINAPI EnumAlgorithms(
     // NCRYPT_SIGNATURE_OPERATION
     // NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION
     if (dwAlgClass == 0 ||
-        ((dwAlgClass & NCRYPT_SIGNATURE_OPERATION) != 0) ||
-        ((dwAlgClass & NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION) != 0))
+        ((dwAlgClass & NCRYPT_SIGNATURE_OPERATION) != 0))
     {
         cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_RSA_ALGORITHM);
         cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_ECDSA_P256_ALGORITHM);
@@ -818,14 +846,6 @@ SECURITY_STATUS WINAPI EnumAlgorithms(
         cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_ECDSA_P521_ALGORITHM);
 
         count += 4;
-    }
-
-    //NCRYPT_RNG_OPERATION
-    if (dwAlgClass == 0 ||
-        ((dwAlgClass & NCRYPT_RNG_OPERATION) != 0))
-    {
-        cbOutput += sizeof(NCryptAlgorithmName) + sizeof(BCRYPT_RNG_ALGORITHM);
-        count++;
     }
 
     if (cbOutput == 0)
@@ -857,25 +877,18 @@ SECURITY_STATUS WINAPI EnumAlgorithms(
     // NCRYPT_SIGNATURE_OPERATION
     // NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION
     if (dwAlgClass == 0 ||
-        ((dwAlgClass & NCRYPT_SIGNATURE_OPERATION) != 0) ||
-        ((dwAlgClass & NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION) != 0))
+        ((dwAlgClass & NCRYPT_SIGNATURE_OPERATION) != 0))
     {
-        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_SIGNATURE_INTERFACE, NCRYPT_SIGNATURE_OPERATION,
                      BCRYPT_RSA_ALGORITHM, sizeof(BCRYPT_RSA_ALGORITHM));
-        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_SIGNATURE_INTERFACE, NCRYPT_SIGNATURE_OPERATION,
                      BCRYPT_ECDSA_P256_ALGORITHM, sizeof(BCRYPT_ECDSA_P256_ALGORITHM));
-        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_SIGNATURE_INTERFACE, NCRYPT_SIGNATURE_OPERATION,
                      BCRYPT_ECDSA_P384_ALGORITHM, sizeof(BCRYPT_ECDSA_P384_ALGORITHM));
-        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_ASYMMETRIC_ENCRYPTION_INTERFACE, NCRYPT_SIGNATURE_OPERATION || NCRYPT_ASYMMETRIC_ENCRYPTION_OPERATION,
+        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_SIGNATURE_INTERFACE, NCRYPT_SIGNATURE_OPERATION,
                      BCRYPT_ECDSA_P521_ALGORITHM, sizeof(BCRYPT_ECDSA_P521_ALGORITHM));
     }
 
-    //NCRYPT_RNG_OPERATION
-    if (dwAlgClass == 0 ||
-        ((dwAlgClass & NCRYPT_RNG_OPERATION) != 0))
-    {
-        addalgtoEnum(pCurrentAlg, pbCurrent, NCRYPT_RNG_OPERATION, NCRYPT_RNG_OPERATION, BCRYPT_RNG_ALGORITHM, sizeof(BCRYPT_RNG_ALGORITHM));
-    }
     *pdwAlgCount = count;
     *ppAlgList = (NCryptAlgorithmName *)pbOutput;
 
@@ -885,6 +898,13 @@ cleanup:
 
     return Status;
 }
+
+#define check_hal_enum_keys(a) if ((a) != HAL_OK) { \
+                                   Status = NTE_INTERNAL_ERROR; \
+                                   *ppEnumState = pEnumState; \
+                                   pEnumState = NULL; \
+                                   goto cleanup; \
+                               }
 
 // Enumerates the names of the keys supported by the provider. It is implemented by your key storage provider (KSP) and called by the NCryptEnumKeys function.
 // Parameters
@@ -917,7 +937,222 @@ SECURITY_STATUS WINAPI EnumKeys(
 	_Inout_ PVOID * ppEnumState,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    KeyMatchData *pEnumState = NULL;
+    BOOL first_time = FALSE;
+    BOOL close_handle = FALSE;
+    NCryptKeyName *pKeyName = NULL;
+    PBYTE pbCurrent;
+
+    hal_uuid_t found_uuid;
+    hal_pkey_handle_t found_handle;
+    hal_key_type_t found_type;
+    hal_key_flags_t found_flags;
+    hal_curve_name_t found_curve;
+    WCHAR found_name[1024];
+    WCHAR found_alg[256];
+    char temp_buf[256];
+
+    uint8_t buffer[1024]; // lazy waste of memory
+    DWORD cbOutput;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (NULL == pProvider || NULL == ppKeyName || NULL == ppEnumState)
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    pEnumState = (KeyMatchData *)*ppEnumState;
+
+    // we're starting a new search
+    if (pEnumState == NULL)
+    {
+        pEnumState = (KeyMatchData*)HeapAlloc(GetProcessHeap(), 0, sizeof(KeyMatchData));
+        if (NULL == pEnumState)
+        {
+            Status = NTE_NO_MEMORY;
+            goto cleanup;
+        }
+        // this is the first time
+        first_time = TRUE;
+
+        // make sure the data has been all zeroed out
+        ZeroMemory(pEnumState, sizeof(KeyMatchData));
+    }
+
+    while (TRUE)
+    {
+        // we need to search
+        if (pEnumState->current_key == pEnumState->num_keys_found)
+        {
+            hal_uuid_t previous_uuid;
+
+            // find the last key
+            if (pEnumState->current_key > 0)
+            {
+                memcpy(&previous_uuid, &(pEnumState->uuid_list[pEnumState->current_key - 1]), sizeof(hal_uuid_t));
+            }
+            else
+            {
+                // there is no first key
+                ZeroMemory(&previous_uuid, sizeof(hal_uuid_t));
+            }
+
+            // we search key pairs so only search on private keys because a key/pair is one key
+            // grab upto 64 keys at a time instead of one at a time
+            check_hal_enum_keys(hal_rpc_pkey_match(pProvider->conn_context, pProvider->client, pProvider->session,
+                HAL_KEY_TYPE_NONE, HAL_CURVE_NONE,
+                0,
+                0,
+                NULL, 0, &(pEnumState->state), pEnumState->uuid_list, &(pEnumState->num_keys_found),
+                MAX_CRYPTECH_UUIDS_IN_KEYMATCH, &previous_uuid));
+
+            // we didn't find anything
+            if (0 == pEnumState->num_keys_found)
+            {
+                Status = NTE_NO_MORE_ITEMS;
+                *ppEnumState = pEnumState;
+                pEnumState = NULL;
+
+                goto cleanup;
+            }
+            else
+            {
+                pEnumState->current_key = 0;
+            }
+        }
+
+        // at this point we have data to return
+
+        // get the uuid that we will return
+        memcpy(&found_uuid, &(pEnumState->uuid_list[pEnumState->current_key]), sizeof(hal_uuid_t));
+
+        // save the first uuid to prevent looping
+        if (first_time)
+        {
+            memcpy(&(pEnumState->first_uuid), &found_uuid, sizeof(hal_uuid_t));
+        }
+        else if (memcmp(&(pEnumState->first_uuid), &found_uuid, sizeof(hal_uuid_t)) == 0)
+        {
+            // we've looped around. This sometimes happens
+            Status = NTE_NO_MORE_ITEMS;
+            *ppEnumState = pEnumState;
+            pEnumState = NULL;
+
+            goto cleanup;
+        }
+
+        // open the key
+        check_hal_enum_keys(hal_rpc_pkey_open(pProvider->conn_context,
+            pProvider->client,
+            pProvider->session,
+            &found_handle,
+            &found_uuid));
+
+        close_handle = TRUE;
+
+        check_hal_enum_keys(hal_rpc_pkey_get_key_type(pProvider->conn_context, found_handle, &found_type));
+
+        if (found_type != HAL_KEY_TYPE_EC_PRIVATE && found_type != HAL_KEY_TYPE_RSA_PRIVATE)
+        {
+            // only search private keys
+            pEnumState->current_key++;
+
+            hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+            close_handle = FALSE;
+
+            // try again
+            continue;
+        }
+        else if (found_type == HAL_KEY_TYPE_EC_PRIVATE)
+        {
+            check_hal_enum_keys(hal_rpc_pkey_get_key_curve(pProvider->conn_context, found_handle, &found_curve));
+        }
+
+        check_hal_enum_keys(hal_rpc_pkey_get_key_flags(pProvider->conn_context, found_handle, &found_flags));
+
+        hal_pkey_attribute_t attr_get_name;
+        attr_get_name.type = CKA_LABEL;
+        check_hal_enum_keys(hal_rpc_pkey_get_attributes(pProvider->conn_context, found_handle, &attr_get_name, 1, buffer, sizeof(buffer)));
+
+        if (attr_get_name.length == 0)
+        {
+            // no name so not compatible with CNG
+            pEnumState->current_key++;
+
+            hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+            close_handle = FALSE;
+
+            // try again
+            continue;
+        }
+        else
+        {
+            strncpy_s(temp_buf, (char *)attr_get_name.value, attr_get_name.length);
+            size_t num_converted;
+            mbstowcs_s(&num_converted, found_name, temp_buf, sizeof(found_name) / sizeof(WCHAR));
+        }
+
+        hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+        close_handle = FALSE;
+
+        break;
+    }
+
+    if (found_type == HAL_KEY_TYPE_EC_PRIVATE)
+    {
+        if (found_curve == HAL_CURVE_P256) wcscpy_s(found_alg, NCRYPT_ECDSA_P256_ALGORITHM);
+        else if (found_curve == HAL_CURVE_P384) wcscpy_s(found_alg, NCRYPT_ECDSA_P384_ALGORITHM);
+        else if (found_curve == HAL_CURVE_P521) wcscpy_s(found_alg, NCRYPT_ECDSA_P521_ALGORITHM);
+    }
+    else
+    {
+        wcscpy_s(found_alg, NCRYPT_RSA_ALGORITHM);
+    }
+
+    cbOutput = sizeof(NCryptKeyName);
+    cbOutput += (wcslen(found_name)+1) * sizeof(WCHAR);
+    cbOutput += (wcslen(found_alg)+1) * sizeof(WCHAR);
+
+    pKeyName = (NCryptKeyName *)HeapAlloc(GetProcessHeap(), 0, cbOutput);
+    pKeyName->dwFlags = found_flags;
+    pKeyName->dwLegacyKeySpec = 0;
+
+    pbCurrent = (PBYTE)(pKeyName + 1);
+    CopyMemory(pbCurrent, found_name, (wcslen(found_name)+1) * sizeof(WCHAR));
+    pKeyName->pszName = (LPWSTR)pbCurrent;
+    pbCurrent += (wcslen(found_name)+1) * sizeof(WCHAR);
+    CopyMemory(pbCurrent, found_alg, (wcslen(found_alg)+1) * sizeof(WCHAR));
+    pKeyName->pszAlgid = (LPWSTR)pbCurrent;
+
+    // prepare for the next key on subsequent calls
+    pEnumState->current_key++;
+
+    Status = ERROR_SUCCESS;
+    *ppEnumState = pEnumState;
+    pEnumState = NULL;
+    *ppKeyName = pKeyName;
+    pKeyName = NULL;
+
+cleanup:
+    if (pEnumState)
+    {
+        HeapFree(GetProcessHeap(), 0, pEnumState);
+    }
+    if (pKeyName)
+    {
+        HeapFree(GetProcessHeap(), 0, pKeyName);
+    }
+    if (NULL != pProvider && TRUE == close_handle)
+    {
+        hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+    }
+
+	return Status;
 }
 
 // Imports a CNG key from a memory BLOB. It is implemented by your key storage provider (KSP) and called by the NCryptImportKey function.

@@ -113,6 +113,28 @@ void TestEnum(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
         }
     }
 
+    status = 0;
+    void *pEnumState = NULL;
+    while (status == 0)
+    {
+        NCryptKeyName *pKeyName = NULL;
+        status = pFunctionTable->EnumKeys(phProvider, NULL, &pKeyName, &pEnumState, 0);
+
+        if (0 == status)
+        {
+            char name_buffer[256];
+            char alg_buffer[256];
+            size_t converted;
+
+            wcstombs_s(&converted, name_buffer, pKeyName->pszName, 256);
+            wcstombs_s(&converted, alg_buffer, pKeyName->pszAlgid, 256);
+            std::cout << "Found: " << name_buffer << " ; alg == " << alg_buffer << std::endl;
+        }
+
+        pFunctionTable->FreeBuffer(pKeyName);
+    }
+    pFunctionTable->FreeBuffer(pEnumState);
+
     status = pFunctionTable->FreeProvider(phProvider);
     std::cout << "FreeProvider returned " << status << std::endl;
 }
