@@ -55,19 +55,19 @@
 
 /* Send a single character with SLIP escaping.
 */
-hal_error_t hal_slip_send_char(const uint8_t c)
+hal_error_t hal_slip_send_char(const void *conn, const uint8_t c)
 {
 	switch (c) {
 	case END:
-		check(hal_serial_send_char(ESC));
-		check(hal_serial_send_char(ESC_END));
+		check(hal_serial_send_char(conn, ESC));
+		check(hal_serial_send_char(conn, ESC_END));
 		break;
 	case ESC:
-		check(hal_serial_send_char(ESC));
-		check(hal_serial_send_char(ESC_ESC));
+		check(hal_serial_send_char(conn, ESC));
+		check(hal_serial_send_char(conn, ESC_ESC));
 		break;
 	default:
-		check(hal_serial_send_char(c));
+		check(hal_serial_send_char(conn, c));
 	}
 
 	return HAL_OK;
@@ -75,25 +75,25 @@ hal_error_t hal_slip_send_char(const uint8_t c)
 
 /* Send a message with SLIP framing.
 */
-hal_error_t hal_slip_send(const uint8_t * const buf, const size_t len)
+hal_error_t hal_slip_send(const void *conn, const uint8_t * const buf, const size_t len)
 {
 	/* send an initial END character to flush out any data that may
 	* have accumulated in the receiver due to line noise
 	*/
-	check(hal_serial_send_char(END));
+	check(hal_serial_send_char(conn, END));
 
 	/* for each byte in the packet, send the appropriate character
 	* sequence
 	*/
 	for (size_t i = 0; i < len; ++i) {
 		hal_error_t ret;
-		if ((ret = hal_slip_send_char(buf[i])) != HAL_OK)
+		if ((ret = hal_slip_send_char(conn, buf[i])) != HAL_OK)
 			return ret;
 	}
 
 	/* tell the receiver that we're done sending the packet
 	*/
-	check(hal_serial_send_char(END));
+	check(hal_serial_send_char(conn, END));
 
 	return HAL_OK;
 }
@@ -135,22 +135,22 @@ hal_error_t hal_slip_process_char(uint8_t c, uint8_t * const buf, size_t * const
 	return HAL_OK;
 }
 
-hal_error_t hal_slip_recv_char(uint8_t * const buf, size_t * const len, const size_t maxlen, int * const complete)
+hal_error_t hal_slip_recv_char(const void *conn, uint8_t * const buf, size_t * const len, const size_t maxlen, int * const complete)
 {
 	uint8_t c;
-	check(hal_serial_recv_char(&c));
+	check(hal_serial_recv_char(conn, &c));
 	return hal_slip_process_char(c, buf, len, maxlen, complete);
 }
 
 /* Receive a message with SLIP framing, blocking mode.
 */
-hal_error_t hal_slip_recv(uint8_t * const buf, size_t * const len, const size_t maxlen)
+hal_error_t hal_slip_recv(const void *conn, uint8_t * const buf, size_t * const len, const size_t maxlen)
 {
 	int complete;
 	hal_error_t ret;
 
 	while (1) {
-		ret = hal_slip_recv_char(buf, len, maxlen, &complete);
+		ret = hal_slip_recv_char(conn, buf, len, maxlen, &complete);
 		if ((ret != HAL_OK) || complete)
 			return ret;
 	}

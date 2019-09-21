@@ -60,7 +60,7 @@ const hal_hash_handle_t hal_hash_handle_none = { HAL_HANDLE_NONE };
 * so if the opcode is wrong, we discard and wait for another packet.
 */
 
-static hal_error_t read_matching_packet(const rpc_func_num_t expected_func,
+static hal_error_t read_matching_packet(const void *con, const rpc_func_num_t expected_func,
 	uint8_t *inbuf,
 	const size_t inbuf_max,
 	const uint8_t **iptr,
@@ -75,7 +75,7 @@ static hal_error_t read_matching_packet(const rpc_func_num_t expected_func,
 
 	do {
 
-		if ((err = hal_rpc_recv(inbuf, &ilen)) != HAL_OK)
+		if ((err = hal_rpc_recv(con, inbuf, &ilen)) != HAL_OK)
 			return err;
 
 		hal_assert(ilen <= inbuf_max);
@@ -98,7 +98,7 @@ static hal_error_t read_matching_packet(const rpc_func_num_t expected_func,
 }
 
 
-hal_error_t hal_rpc_get_version(uint32_t *version) // TESTED
+hal_error_t hal_rpc_get_version(const void *con, uint32_t *version) // TESTED
 {
 	uint8_t outbuf[nargs(2)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(4)];
@@ -108,9 +108,9 @@ hal_error_t hal_rpc_get_version(uint32_t *version) // TESTED
 
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_GET_VERSION));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_GET_VERSION, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_GET_VERSION, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -120,7 +120,7 @@ hal_error_t hal_rpc_get_version(uint32_t *version) // TESTED
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_get_random(void *buffer, const size_t length) // TESTED
+hal_error_t hal_rpc_get_random(const void *con, void *buffer, const size_t length) // TESTED
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 
@@ -140,9 +140,9 @@ hal_error_t hal_rpc_get_random(void *buffer, const size_t length) // TESTED
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_GET_RANDOM));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, (uint32_t)length));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_GET_RANDOM, inbuf, ibuf_len, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_GET_RANDOM, inbuf, ibuf_len, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -152,7 +152,7 @@ hal_error_t hal_rpc_get_random(void *buffer, const size_t length) // TESTED
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_set_pin(const hal_client_handle_t client,
+hal_error_t hal_rpc_set_pin(const void *con, const hal_client_handle_t client,
 	const hal_user_t user,
 	const char * const pin, const size_t pin_len)
 {
@@ -171,9 +171,9 @@ hal_error_t hal_rpc_set_pin(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, user));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, (const uint8_t *)pin, pin_len));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_SET_PIN, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_SET_PIN, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
@@ -193,7 +193,7 @@ hal_error_t hal_rpc_set_pin(const hal_client_handle_t client,
 * to revisit this if the is_logged_in() call turns into a bottleneck.
 */
 
-hal_error_t hal_rpc_login(const hal_client_handle_t client,
+hal_error_t hal_rpc_login(const void *con, const hal_client_handle_t client,
 	const hal_user_t user,
 	const char * const pin, const size_t pin_len)
 {
@@ -212,15 +212,15 @@ hal_error_t hal_rpc_login(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, user));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, (const uint8_t *)pin, pin_len));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_LOGIN, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_LOGIN, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_logout(const hal_client_handle_t client)
+hal_error_t hal_rpc_logout(const void *con, const hal_client_handle_t client)
 {
 	uint8_t outbuf[nargs(2)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(3)];
@@ -229,15 +229,15 @@ hal_error_t hal_rpc_logout(const hal_client_handle_t client)
 
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_LOGOUT));
 	check(hal_xdr_encode_int(&optr, olimit, client.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_LOGOUT, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_LOGOUT, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_logout_all(void)
+hal_error_t hal_rpc_logout_all(const void *con)
 {
 	uint8_t outbuf[nargs(2)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(3)];
@@ -247,15 +247,15 @@ hal_error_t hal_rpc_logout_all(void)
 
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_LOGOUT_ALL));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_LOGOUT_ALL, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_LOGOUT_ALL, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_is_logged_in(const hal_client_handle_t client,
+hal_error_t hal_rpc_is_logged_in(const void *con, const hal_client_handle_t client,
 	const hal_user_t user)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
@@ -266,15 +266,15 @@ hal_error_t hal_rpc_is_logged_in(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_IS_LOGGED_IN));
 	check(hal_xdr_encode_int(&optr, olimit, client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, user));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_IS_LOGGED_IN, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_IS_LOGGED_IN, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_get_digest_len(const hal_digest_algorithm_t alg, size_t *length)
+hal_error_t hal_rpc_hash_get_digest_len(const void *con, const hal_digest_algorithm_t alg, size_t *length)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(4)];
@@ -286,9 +286,9 @@ hal_error_t hal_rpc_hash_get_digest_len(const hal_digest_algorithm_t alg, size_t
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_HASH_GET_DIGEST_LEN));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, alg));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_HASH_GET_DIGEST_LEN, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_HASH_GET_DIGEST_LEN, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -298,7 +298,7 @@ hal_error_t hal_rpc_hash_get_digest_len(const hal_digest_algorithm_t alg, size_t
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_get_digest_algorithm_id(const hal_digest_algorithm_t alg,
+hal_error_t hal_rpc_hash_get_digest_algorithm_id(const void *con, const hal_digest_algorithm_t alg,
 	uint8_t *id, size_t *len, const size_t len_max)
 {
 	uint8_t outbuf[nargs(4)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
@@ -317,9 +317,9 @@ hal_error_t hal_rpc_hash_get_digest_algorithm_id(const hal_digest_algorithm_t al
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, alg));
 	check(hal_xdr_encode_int(&optr, olimit, len_max));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_HASH_GET_DIGEST_ALGORITHM_ID,
+	check(read_matching_packet(con, RPC_FUNC_HASH_GET_DIGEST_ALGORITHM_ID,
 		inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
@@ -334,7 +334,7 @@ hal_error_t hal_rpc_hash_get_digest_algorithm_id(const hal_digest_algorithm_t al
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_get_algorithm(const hal_hash_handle_t hash, hal_digest_algorithm_t *alg)
+hal_error_t hal_rpc_hash_get_algorithm(const void *con, const hal_hash_handle_t hash, hal_digest_algorithm_t *alg)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(4)];
@@ -346,9 +346,9 @@ hal_error_t hal_rpc_hash_get_algorithm(const hal_hash_handle_t hash, hal_digest_
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_HASH_GET_ALGORITHM));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, hash.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_HASH_GET_ALGORITHM, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_HASH_GET_ALGORITHM, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -358,7 +358,7 @@ hal_error_t hal_rpc_hash_get_algorithm(const hal_hash_handle_t hash, hal_digest_
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_initialize(const hal_client_handle_t client,
+hal_error_t hal_rpc_hash_initialize(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_hash_handle_t *hash,
 	const hal_digest_algorithm_t alg,
@@ -379,9 +379,9 @@ hal_error_t hal_rpc_hash_initialize(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, session.handle));
 	check(hal_xdr_encode_int(&optr, olimit, alg));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, key, key_len));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_HASH_INITIALIZE, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_HASH_INITIALIZE, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -390,7 +390,7 @@ hal_error_t hal_rpc_hash_initialize(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_update(const hal_hash_handle_t hash,
+hal_error_t hal_rpc_hash_update(const void *con, const hal_hash_handle_t hash,
 	const uint8_t * data, const size_t length)
 {
 	size_t sizeof_outbuf = nargs(4) + pad(length);
@@ -408,15 +408,15 @@ hal_error_t hal_rpc_hash_update(const hal_hash_handle_t hash,
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, hash.handle));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, data, length));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_HASH_UPDATE, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_HASH_UPDATE, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_finalize(const hal_hash_handle_t hash,
+hal_error_t hal_rpc_hash_finalize(const void *con, const hal_hash_handle_t hash,
 	uint8_t *digest, const size_t length)
 {
 	size_t sizeof_inbuf = nargs(4) + pad(length);
@@ -435,9 +435,9 @@ hal_error_t hal_rpc_hash_finalize(const hal_hash_handle_t hash,
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, hash.handle));
 	check(hal_xdr_encode_int(&optr, olimit, length));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_HASH_FINALIZE, inbuf, sizeof_inbuf, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_HASH_FINALIZE, inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -447,7 +447,7 @@ hal_error_t hal_rpc_hash_finalize(const hal_hash_handle_t hash,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_load(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_load(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_pkey_handle_t *pkey,
 	hal_uuid_t *name,
@@ -470,9 +470,9 @@ hal_error_t hal_rpc_pkey_load(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, session.handle));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, der, der_len));
 	check(hal_xdr_encode_int(&optr, olimit, flags));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_LOAD, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_LOAD, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -484,7 +484,7 @@ hal_error_t hal_rpc_pkey_load(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_open(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_open(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_pkey_handle_t *pkey,
 	const hal_uuid_t * const name)
@@ -498,9 +498,9 @@ hal_error_t hal_rpc_pkey_open(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, session.handle));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, name->uuid, sizeof(name->uuid)));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_OPEN, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_OPEN, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 
@@ -510,7 +510,7 @@ hal_error_t hal_rpc_pkey_open(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_generate_rsa(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_generate_rsa(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_pkey_handle_t *pkey,
 	hal_uuid_t *name,
@@ -535,9 +535,9 @@ hal_error_t hal_rpc_pkey_generate_rsa(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, key_len));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, exp, exp_len));
 	check(hal_xdr_encode_int(&optr, olimit, flags));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GENERATE_RSA, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GENERATE_RSA, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 
@@ -551,7 +551,7 @@ hal_error_t hal_rpc_pkey_generate_rsa(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_generate_ec(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_generate_ec(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_pkey_handle_t *pkey,
 	hal_uuid_t *name,
@@ -569,9 +569,9 @@ hal_error_t hal_rpc_pkey_generate_ec(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, session.handle));
 	check(hal_xdr_encode_int(&optr, olimit, curve));
 	check(hal_xdr_encode_int(&optr, olimit, flags));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GENERATE_EC, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GENERATE_EC, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 
@@ -585,7 +585,7 @@ hal_error_t hal_rpc_pkey_generate_ec(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_generate_hashsig(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_generate_hashsig(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_pkey_handle_t *pkey,
 	hal_uuid_t *name,
@@ -607,9 +607,9 @@ hal_error_t hal_rpc_pkey_generate_hashsig(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, (uint32_t)lms_type));
 	check(hal_xdr_encode_int(&optr, olimit, (uint32_t)lmots_type));
 	check(hal_xdr_encode_int(&optr, olimit, flags));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GENERATE_HASHSIG, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GENERATE_HASHSIG, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 
@@ -623,7 +623,7 @@ hal_error_t hal_rpc_pkey_generate_hashsig(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_close(const hal_pkey_handle_t pkey)
+hal_error_t hal_rpc_pkey_close(const void *con, const hal_pkey_handle_t pkey)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(3)];
@@ -634,15 +634,15 @@ hal_error_t hal_rpc_pkey_close(const hal_pkey_handle_t pkey)
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_PKEY_CLOSE));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_CLOSE, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_CLOSE, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_delete(const hal_pkey_handle_t pkey)
+hal_error_t hal_rpc_pkey_delete(const void *con, const hal_pkey_handle_t pkey)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(3)];
@@ -653,15 +653,15 @@ hal_error_t hal_rpc_pkey_delete(const hal_pkey_handle_t pkey)
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_PKEY_DELETE));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_DELETE, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_DELETE, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_get_key_type(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_get_key_type(const void *con, const hal_pkey_handle_t pkey,
 	hal_key_type_t *type)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
@@ -674,9 +674,9 @@ hal_error_t hal_rpc_pkey_get_key_type(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_PKEY_GET_KEY_TYPE));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GET_KEY_TYPE, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GET_KEY_TYPE, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -686,7 +686,7 @@ hal_error_t hal_rpc_pkey_get_key_type(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_get_key_curve(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_get_key_curve(const void *con, const hal_pkey_handle_t pkey,
 	hal_curve_name_t *curve)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
@@ -699,9 +699,9 @@ hal_error_t hal_rpc_pkey_get_key_curve(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_PKEY_GET_KEY_CURVE));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GET_KEY_CURVE, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GET_KEY_CURVE, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -711,7 +711,7 @@ hal_error_t hal_rpc_pkey_get_key_curve(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_get_key_flags(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_get_key_flags(const void *con, const hal_pkey_handle_t pkey,
 	hal_key_flags_t *flags)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
@@ -724,9 +724,9 @@ hal_error_t hal_rpc_pkey_get_key_flags(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_PKEY_GET_KEY_FLAGS));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GET_KEY_FLAGS, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GET_KEY_FLAGS, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -736,7 +736,7 @@ hal_error_t hal_rpc_pkey_get_key_flags(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-size_t hal_rpc_pkey_get_public_key_len(const hal_pkey_handle_t pkey)
+size_t hal_rpc_pkey_get_public_key_len(const void *con, const hal_pkey_handle_t pkey)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(4)];
@@ -748,9 +748,9 @@ size_t hal_rpc_pkey_get_public_key_len(const hal_pkey_handle_t pkey)
 	check(hal_xdr_encode_int(&optr, olimit, RPC_FUNC_PKEY_GET_PUBLIC_KEY_LEN));
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GET_PUBLIC_KEY_LEN, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GET_PUBLIC_KEY_LEN, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK &&
@@ -760,7 +760,7 @@ size_t hal_rpc_pkey_get_public_key_len(const hal_pkey_handle_t pkey)
 	return 0;
 }
 
-hal_error_t hal_rpc_pkey_get_public_key(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_get_public_key(const void *con, const hal_pkey_handle_t pkey,
 	uint8_t *der, size_t *der_len, const size_t der_max)
 {
 	uint8_t outbuf[nargs(4)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
@@ -779,9 +779,9 @@ hal_error_t hal_rpc_pkey_get_public_key(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, dummy_client.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkey.handle));
 	check(hal_xdr_encode_int(&optr, olimit, der_max));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GET_PUBLIC_KEY, inbuf, sizeof_inbuf, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GET_PUBLIC_KEY, inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -795,7 +795,7 @@ hal_error_t hal_rpc_pkey_get_public_key(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_sign(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_sign(const void *con, const hal_pkey_handle_t pkey,
 	const hal_hash_handle_t hash,
 	const uint8_t * const input, const size_t input_len,
 	uint8_t * signature, size_t *signature_len, const size_t signature_max)
@@ -820,9 +820,9 @@ hal_error_t hal_rpc_pkey_sign(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, hash.handle));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, input, input_len));
 	check(hal_xdr_encode_int(&optr, olimit, signature_max));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_SIGN, inbuf, sizeof_inbuf, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_SIGN, inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK)
@@ -830,7 +830,7 @@ hal_error_t hal_rpc_pkey_sign(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_verify(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_verify(const void *con, const hal_pkey_handle_t pkey,
 	const hal_hash_handle_t hash,
 	const uint8_t * const input, const size_t input_len,
 	const uint8_t * const signature, const size_t signature_len)
@@ -852,15 +852,15 @@ hal_error_t hal_rpc_pkey_verify(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, hash.handle));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, input, input_len));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, signature, signature_len));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_VERIFY, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_VERIFY, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_match(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_match(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	const hal_key_type_t type,
 	const hal_curve_name_t curve,
@@ -910,9 +910,9 @@ hal_error_t hal_rpc_pkey_match(const hal_client_handle_t client,
 	check(hal_xdr_encode_int(&optr, olimit, *state));
 	check(hal_xdr_encode_int(&optr, olimit, result_max));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, previous_uuid->uuid, sizeof(previous_uuid->uuid)));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_MATCH, inbuf, sizeof_inbuf, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_MATCH, inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -932,7 +932,7 @@ hal_error_t hal_rpc_pkey_match(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_set_attributes(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_set_attributes(const void *con, const hal_pkey_handle_t pkey,
 	const hal_pkey_attribute_t *attributes,
 	const unsigned attributes_len)
 {
@@ -961,15 +961,15 @@ hal_error_t hal_rpc_pkey_set_attributes(const hal_pkey_handle_t pkey,
 		else
 			check(hal_xdr_encode_variable_opaque(&optr, olimit, (uint8_t *)attributes[i].value, attributes[i].length));
 	}
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_SET_ATTRIBUTES, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_SET_ATTRIBUTES, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_get_attributes(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_get_attributes(const void *con, const hal_pkey_handle_t pkey,
 	hal_pkey_attribute_t *attributes,
 	const unsigned attributes_len,
 	uint8_t *attributes_buffer,
@@ -997,9 +997,9 @@ hal_error_t hal_rpc_pkey_get_attributes(const hal_pkey_handle_t pkey,
 	for (int i = 0; i < attributes_len; i++)
 		check(hal_xdr_encode_int(&optr, olimit, attributes[i].type));
 	check(hal_xdr_encode_int(&optr, olimit, attributes_buffer_len));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_GET_ATTRIBUTES, inbuf, sizeof_inbuf, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_GET_ATTRIBUTES, inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -1029,7 +1029,7 @@ hal_error_t hal_rpc_pkey_get_attributes(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_export(const hal_pkey_handle_t pkey,
+hal_error_t hal_rpc_pkey_export(const void *con, const hal_pkey_handle_t pkey,
 	const hal_pkey_handle_t kekek,
 	uint8_t *pkcs8, size_t *pkcs8_len, const size_t pkcs8_max,
 	uint8_t *kek, size_t *kek_len, const size_t kek_max)
@@ -1052,9 +1052,9 @@ hal_error_t hal_rpc_pkey_export(const hal_pkey_handle_t pkey,
 	check(hal_xdr_encode_int(&optr, olimit, kekek.handle));
 	check(hal_xdr_encode_int(&optr, olimit, pkcs8_max));
 	check(hal_xdr_encode_int(&optr, olimit, kek_max));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_EXPORT, inbuf, sizeof_inbuf, &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_EXPORT, inbuf, sizeof_inbuf, &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 	if (rpc_ret == HAL_OK) {
@@ -1064,7 +1064,7 @@ hal_error_t hal_rpc_pkey_export(const hal_pkey_handle_t pkey,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_pkey_import(const hal_client_handle_t client,
+hal_error_t hal_rpc_pkey_import(const void *con, const hal_client_handle_t client,
 	const hal_session_handle_t session,
 	hal_pkey_handle_t *pkey,
 	hal_uuid_t *name,
@@ -1091,9 +1091,9 @@ hal_error_t hal_rpc_pkey_import(const hal_client_handle_t client,
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, pkcs8, pkcs8_len));
 	check(hal_xdr_encode_variable_opaque(&optr, olimit, kek, kek_len));
 	check(hal_xdr_encode_int(&optr, olimit, flags));
-	check(hal_rpc_send(outbuf, optr - outbuf));
+	check(hal_rpc_send(con, outbuf, optr - outbuf));
 
-	check(read_matching_packet(RPC_FUNC_PKEY_IMPORT, inbuf, sizeof(inbuf), &iptr, &ilimit));
+	check(read_matching_packet(con, RPC_FUNC_PKEY_IMPORT, inbuf, sizeof(inbuf), &iptr, &ilimit));
 
 	check(hal_xdr_decode_int(&iptr, ilimit, &rpc_ret));
 
