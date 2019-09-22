@@ -608,11 +608,56 @@ SECURITY_STATUS WINAPI SetKeyProperty(
 //
 // NTE_NOT_SUPPORTED  Specifies that the function is not implemented.
 SECURITY_STATUS WINAPI FinalizeKey(
-	_In_    NCRYPT_PROV_HANDLE hProvider,
-	_In_    NCRYPT_KEY_HANDLE hKey,
-	_In_    DWORD   dwFlags)
+    _In_    NCRYPT_PROV_HANDLE hProvider,
+    _In_    NCRYPT_KEY_HANDLE hKey,
+    _In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = ERROR_SUCCESS;
+    DKEY_KSP_PROVIDER *pProvider;
+    DKEY_KSP_KEY *pKey = NULL;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pKey->phProvider != pProvider)
+    {
+        Status = NTE_BAD_PROVIDER;
+        goto cleanup;
+    }
+
+    if (((dwFlags & NCRYPT_NO_KEY_VALIDATION) != 0) ||
+        ((dwFlags & NCRYPT_WRITE_KEY_TO_LEGACY_STORE_FLAG) != 0))
+    {
+        Status = NTE_BAD_FLAGS;
+        goto cleanup;
+    }
+
+    // can't finalize twice
+    if (pKey->bFinalized == TRUE)
+    {
+        Status = NTE_FIXEDPARAMETER;
+        goto cleanup;
+    }
+
+    pKey->bFinalized = TRUE;
+
+cleanup:
+
+    return Status;
 }
 
 // Deletes a cyptographic key. It is implemented by your key storage provider (KSP) and called by the NCryptDeleteKey function.
@@ -642,7 +687,42 @@ SECURITY_STATUS WINAPI DeleteKey(
 	_In_    NCRYPT_KEY_HANDLE hKey,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = ERROR_SUCCESS;
+    DKEY_KSP_PROVIDER *pProvider;
+    DKEY_KSP_KEY *pKey = NULL;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pKey->phProvider != pProvider)
+    {
+        Status = NTE_BAD_PROVIDER;
+        goto cleanup;
+    }
+
+    // delete the key
+    hal_rpc_pkey_delete(pProvider->conn_context, pKey->hPrivateKey);
+    hal_rpc_pkey_delete(pProvider->conn_context, pKey->hPublicKey);
+
+    HeapFree(GetProcessHeap(), 0, pKey);
+
+cleanup:
+
+    return Status;
 }
 
 // Frees a provider handle created by the provider. It is implemented by your key storage provider (KSP) and called by
