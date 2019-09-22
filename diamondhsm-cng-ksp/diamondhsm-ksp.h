@@ -106,19 +106,16 @@ typedef __struct_bcount(sizeof(DKEY_KSP_KEY)) struct _DKEY_KSP_KEY
 {
 	DWORD               cbLength;           //length of the whole data blob
 	DWORD               dwMagic;            //type of the key
-	LPWSTR              pszKeyName;         //name of the key (key file)
-	DWORD               dwAlgID;            //Algorithm ID
-	DWORD               dwKeyBitLength;     //length of the key
-	DWORD               dwExportPolicy;     //export policy
-	DWORD               dwKeyUsagePolicy;   //key usage policy
-	BOOL                fFinished;          //Whether the key is finalized
+	LPWSTR              pszKeyName;         //name of the ke
+    LPWSTR              pszAlgID;           //Algorithm name
+    BOOL                bFinalized;         //TRUE if attributes can't be changed
 
 	// handle to cryptography providers needed to perform operations with
 	// the key.
-	BCRYPT_ALG_HANDLE   hProvider;
+    DKEY_KSP_PROVIDER   *phProvider;
 
 	// handle to key objects.
-	BCRYPT_KEY_HANDLE   hPublicKey;
-	BCRYPT_KEY_HANDLE   hPrivateKey;
+    hal_pkey_handle_t   hPublicKey;
+    hal_pkey_handle_t   hPrivateKey;
 } DKEY_KSP_KEY;
 

@@ -221,6 +221,31 @@ void TestAlgorithms(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
     std::cout << "FreeProvider returned " << status << std::endl;
 }
 
+void TestPKEY(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
+{
+    SECURITY_STATUS status;
+    NCRYPT_PROV_HANDLE phProvider;
+    NCRYPT_KEY_HANDLE hKey;
+
+    status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
+    std::cout << "OpenProvider returned " << status << std::endl;
+
+    status = pFunctionTable->OpenKey(phProvider, &hKey, TEXT("diamond-dr-ksk"), 0, 0);
+    std::cout << "OpenKey \"diamond - dr - ksk\" returned " << status << std::endl;
+
+    status = pFunctionTable->FreeKey(phProvider, hKey);
+    std::cout << "FreeKey returned " << status << std::endl;
+
+    status = pFunctionTable->OpenKey(phProvider, &hKey, TEXT("not in key storage"), 0, 0);
+    std::cout << "OpenKey \"not in key storage\" returned " << status << std::endl;
+
+    status = pFunctionTable->FreeKey(phProvider, hKey);
+    std::cout << "FreeKey returned " << status << std::endl;
+
+    status = pFunctionTable->FreeProvider(phProvider);
+    std::cout << "FreeProvider returned " << status << std::endl;
+}
+
 void TestFunctions(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 {
     std::cout << "Testing Function Existence" << std::endl;
@@ -231,6 +256,9 @@ void TestFunctions(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 
     std::cout << "Testing Algorithm Functions" << std::endl;
     TestAlgorithms(pFunctionTable);
+
+    std::cout << "Testing PKEY Functions" << std::endl;
+    TestPKEY(pFunctionTable);
 }
 
 int main()

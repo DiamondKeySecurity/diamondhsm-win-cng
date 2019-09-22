@@ -136,6 +136,8 @@ SECURITY_STATUS WINAPI OpenProvider(
 		goto cleanup;
 	}
 
+    *phProvider = NULL;
+
 	// Allocate memory for provider object.
 	cbLength = sizeof(DKEY_KSP_PROVIDER);
 	pProvider = (DKEY_KSP_PROVIDER*)HeapAlloc(GetProcessHeap(), 0, cbLength);;
@@ -229,7 +231,141 @@ SECURITY_STATUS WINAPI OpenKey(
 	_In_opt_ DWORD  dwLegacyKeySpec,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    DKEY_KSP_KEY *pKey = NULL;
+    DWORD cbObject = 0;
+    unsigned int state = 0;
+    unsigned int result_len = 0;
+    hal_error_t result = HAL_OK;
+    PVOID pCurrent;
+
+    hal_uuid_t uuid_none, uuid_list[2];
+    ZeroMemory(&uuid_none, sizeof(hal_uuid_t));
+
+    //
+    // Validate input parameters.
+    //
+    UNREFERENCED_PARAMETER(dwLegacyKeySpec);
+    UNREFERENCED_PARAMETER(dwFlags);
+
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if ((phKey == NULL) || (pszKeyName == NULL))
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    *phKey = NULL;
+
+    // create, give extra space for alg type and name
+    cbObject = sizeof(DKEY_KSP_KEY) + (sizeof(pszKeyName)+32) * sizeof(WCHAR);
+    pKey = (DKEY_KSP_KEY *)HeapAlloc(GetProcessHeap(), 0, cbObject);
+    if (pKey == NULL)
+    {
+        Status = NTE_NO_MEMORY;
+        goto cleanup;
+    }
+    ZeroMemory(pKey, cbObject);
+
+    pKey->cbLength = cbObject;
+    pKey->dwMagic = DKEY_KSP_KEY_MAGIC;
+    pKey->phProvider = pProvider;
+
+    pCurrent = (PVOID)(pKey + 1);
+    CopyMemory(pCurrent, pszKeyName, (wcslen(pszKeyName) + 1) * sizeof(WCHAR));
+    pKey->pszKeyName = (LPWSTR)pCurrent;
+    pCurrent = ((PBYTE)pCurrent) + (wcslen(pszKeyName) + 1) * sizeof(WCHAR);
+
+    // find key by name, must convert for HAL
+    hal_pkey_attribute_t attr_name;
+    attr_name.type = CKA_LABEL;
+    char name_buffer[1024];
+    size_t num_converted;
+    wcstombs_s(&num_converted, name_buffer, pszKeyName, sizeof(name_buffer));
+    if (num_converted != wcslen(pszKeyName)+1)
+    {
+        Status = NTE_BUFFER_TOO_SMALL;
+        goto cleanup;
+    }
+    attr_name.value = name_buffer;
+    attr_name.length = strlen(name_buffer);
+
+    result = hal_rpc_pkey_match(pProvider->conn_context, pProvider->client, pProvider->session,
+        HAL_KEY_TYPE_NONE, HAL_CURVE_NONE,
+        0,
+        0,
+        &attr_name, 1, &state, uuid_list, &result_len,
+        sizeof(uuid_list) / sizeof(hal_uuid_t), &uuid_none);
+
+    if (result != HAL_OK ||
+        result_len != 2)
+    {
+        Status = NTE_NOT_FOUND;
+        goto cleanup;
+    }
+
+    for (int i = 0; i < result_len; ++i)
+    {
+        hal_pkey_handle_t handle;
+        hal_key_type_t key_type = HAL_KEY_TYPE_NONE;
+        hal_curve_name_t key_curve = HAL_CURVE_NONE;
+        result = hal_rpc_pkey_open(pProvider->conn_context, pProvider->client, pProvider->session, &handle, &uuid_list[i]);
+        if (result != HAL_OK)
+        {
+            Status = NTE_INTERNAL_ERROR;
+            goto cleanup;
+        }
+
+        hal_rpc_pkey_get_key_type(pProvider->conn_context, handle, &key_type);
+        if (key_type == HAL_KEY_TYPE_EC_PRIVATE || key_type == HAL_KEY_TYPE_RSA_PRIVATE) pKey->hPrivateKey = handle;
+        else if (key_type == HAL_KEY_TYPE_EC_PUBLIC || key_type == HAL_KEY_TYPE_RSA_PUBLIC) pKey->hPublicKey = handle;
+        else
+        {
+            Status = NTE_INTERNAL_ERROR;
+            goto cleanup;
+        }
+
+        if (key_type == HAL_KEY_TYPE_RSA_PRIVATE)
+        {
+            CopyMemory(pCurrent, NCRYPT_RSA_ALGORITHM, sizeof(NCRYPT_RSA_ALGORITHM));
+            pKey->pszAlgID = (LPWSTR)pCurrent;
+        }
+        else if (key_type == HAL_KEY_TYPE_EC_PRIVATE)
+        {
+            hal_rpc_pkey_get_key_curve(pProvider->conn_context, handle, &key_curve);
+            if (key_curve == HAL_CURVE_P256) CopyMemory(pCurrent, BCRYPT_ECDSA_P256_ALGORITHM, sizeof(BCRYPT_ECDSA_P256_ALGORITHM));
+            else if (key_curve == HAL_CURVE_P384) CopyMemory(pCurrent, BCRYPT_ECDSA_P384_ALGORITHM, sizeof(BCRYPT_ECDSA_P384_ALGORITHM));
+            else if (key_curve == HAL_CURVE_P521) CopyMemory(pCurrent, BCRYPT_ECDSA_P521_ALGORITHM, sizeof(BCRYPT_ECDSA_P521_ALGORITHM));
+            else CopyMemory(pCurrent, TEXT("ECDSA"), sizeof(TEXT("ECDSA")));
+
+            pKey->pszAlgID = (LPWSTR)pCurrent;
+        }
+    }
+
+    pKey->bFinalized = TRUE;
+    *phKey = (NCRYPT_KEY_HANDLE)pKey;
+    pKey = NULL;
+    Status = ERROR_SUCCESS;
+
+cleanup:
+
+    if (pKey)
+    {
+        if (pKey->hPrivateKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPrivateKey);
+        if (pKey->hPublicKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPublicKey);
+
+        HeapFree(GetProcessHeap(), 0, pKey);
+    }
+
+    return Status;
 }
 
 // Creates and stores a key.It is implemented by your key storage provider(KSP) and called by the NCryptCreatePersistedKey function.
@@ -574,7 +710,47 @@ SECURITY_STATUS WINAPI FreeKey(
 	_In_    NCRYPT_PROV_HANDLE hProvider,
 	_In_    NCRYPT_KEY_HANDLE hKey)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = ERROR_SUCCESS;
+    DKEY_KSP_PROVIDER *pProvider;
+    DKEY_KSP_KEY *pKey = NULL;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pKey->phProvider != pProvider)
+    {
+        Status = NTE_BAD_PROVIDER;
+        goto cleanup;
+    }
+
+    //
+    // Free key object.
+    //
+    if (pKey)
+    {
+        if (pKey->hPrivateKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPrivateKey);
+        if (pKey->hPublicKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPublicKey);
+
+        HeapFree(GetProcessHeap(), 0, pKey);
+    }
+
+cleanup:
+
+    return Status;
 }
 
 // Releases a block of memory allocated by the provider. It is implemented by your key storage provider (KSP) and called by
@@ -764,8 +940,6 @@ SECURITY_STATUS WINAPI IsAlgSupported(
         goto cleanup;
     }
 
-
-    // This KSP only supports the RSA algorithm.
     if ((wcscmp(pszAlgId, NCRYPT_RSA_ALGORITHM) == 0) ||
         (wcscmp(pszAlgId, NCRYPT_SHA1_ALGORITHM) == 0) ||
         (wcscmp(pszAlgId, NCRYPT_SHA256_ALGORITHM) == 0) ||
