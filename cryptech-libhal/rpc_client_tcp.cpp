@@ -9,7 +9,9 @@ extern "C"
     } connection_context_t;
 }
 
-hal_error_t hal_rpc_client_transport_init(void **connection_context)
+static connection_context_t g_conn_context;
+
+hal_error_t hal_rpc_client_transport_init()
 {
 	// get the IP address from the DKS_HSM_HOST_IP environment variable
 	const char *hostip = "10.1.10.9";  // getenv("DKS_HSM_HOST_IP");
@@ -23,13 +25,11 @@ hal_error_t hal_rpc_client_transport_init(void **connection_context)
 		return HAL_ERROR_BAD_ARGUMENTS;
 	}
 
-	return hal_rpc_client_transport_init_ip(hostip, hostname, connection_context);
+	return hal_rpc_client_transport_init_ip(hostip, hostname);
 }
 
-hal_error_t hal_rpc_client_transport_init_ip(const char *hostip, const char *hostname, void **connection_context)
+hal_error_t hal_rpc_client_transport_init_ip(const char *hostip, const char *hostname)
 {
-    connection_context_t *context = new connection_context_t;
-
 	struct sockaddr_in server;
 	int sock;
 
@@ -44,14 +44,14 @@ hal_error_t hal_rpc_client_transport_init_ip(const char *hostip, const char *hos
 	// start the tls connection
 	tls_init();
 
-    context->tls = tls_client();
-    context->config = tls_config_new();
+    g_conn_context.tls = tls_client();
+    g_conn_context.config = tls_config_new();
 
-	tls_config_insecure_noverifycert(context->config);
+	tls_config_insecure_noverifycert(g_conn_context.config);
 
-	tls_config_insecure_noverifyname(context->config);
+	tls_config_insecure_noverifyname(g_conn_context.config);
 
-	tls_configure(context->tls, context->config);
+	tls_configure(g_conn_context.tls, g_conn_context.config);
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -60,54 +60,46 @@ hal_error_t hal_rpc_client_transport_init_ip(const char *hostip, const char *hos
 	server.sin_family = AF_INET;
 
 	if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
-        delete context;
 		return HAL_ERROR_RPC_TRANSPORT;
 	}
 
-	if (tls_connect_socket(context->tls, sock, hostname) < 0) {
-        delete context;
+	if (tls_connect_socket(g_conn_context.tls, sock, hostname) < 0) {
         return HAL_ERROR_RPC_TRANSPORT;
 	}
 
-    *connection_context = context;
-
 	return HAL_OK;
 }
 
-hal_error_t hal_rpc_client_transport_close(void *connection_context)
+hal_error_t hal_rpc_client_transport_close()
 {
-    connection_context_t *context = (connection_context_t *)connection_context;
-	if (context->tls != NULL)
+	if (g_conn_context.tls != NULL)
 	{
-		tls_close(context->tls);
-		tls_free(context->tls);
+		tls_close(g_conn_context.tls);
+		tls_free(g_conn_context.tls);
 
-        context->tls = NULL;
+        g_conn_context.tls = NULL;
 	}
 
-	if (context->config != NULL)
+	if (g_conn_context.config != NULL)
 	{
-		tls_config_free(context->config);
-        context->config = NULL;
+		tls_config_free(g_conn_context.config);
+        g_conn_context.config = NULL;
 	}
-
-    // delete the memory
-    delete context;
 
 	return HAL_OK;
 }
 
 
-hal_error_t hal_rpc_send(const void *connection_context, const uint8_t * const buf, const size_t len)
+hal_error_t hal_rpc_send(const uint8_t * const buf, const size_t len)
 {
-	return hal_slip_send(connection_context, buf, len);
+	return hal_slip_send(buf, len);
 }
 
-hal_error_t hal_rpc_recv(const void *connection_context, uint8_t * const buf, size_t * const len)
+hal_error_t hal_rpc_recv(uint8_t * const buf, size_t * const len)
 {
 	size_t maxlen = *len;
 	*len = 0;
-	hal_error_t err = hal_slip_recv(connection_context, buf, len, maxlen);
+	hal_error_t err = hal_slip_recv(buf, len, maxlen);
 	return err;
 }
 
@@ -116,21 +108,17 @@ hal_error_t hal_rpc_recv(const void *connection_context, uint8_t * const buf, si
 * the code in slip.c expects.
 */
 
-hal_error_t hal_serial_send_char(const void *connection_context, const uint8_t c)
+hal_error_t hal_serial_send_char(const uint8_t c)
 {
-    connection_context_t *context = (connection_context_t *)connection_context;
-
-	if (tls_write(context->tls, &c, 1) == 1)
+	if (tls_write(g_conn_context.tls, &c, 1) == 1)
 		return HAL_OK;
 	else
 		return HAL_ERROR_RPC_TRANSPORT;
 }
 
-hal_error_t hal_serial_recv_char(const void *connection_context, uint8_t * const c)
+hal_error_t hal_serial_recv_char(uint8_t * const c)
 {
-    connection_context_t *context = (connection_context_t *)connection_context;
-
-	if (tls_read(context->tls, c, 1) == 1)
+	if (tls_read(g_conn_context.tls, c, 1) == 1)
 		return HAL_OK;
 	else
 		return HAL_ERROR_RPC_TRANSPORT;

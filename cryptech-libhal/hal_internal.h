@@ -585,15 +585,15 @@ extern void hal_log(const hal_log_level_t level, const char *format, ...);
 //  * transport-specific (sockets, USB).
 //  */
 
-extern hal_error_t hal_rpc_send(const void *connection_context, const uint8_t * const buf, const size_t len);
-extern hal_error_t hal_rpc_recv(const void *connection_context, uint8_t * const buf, size_t * const len);
+extern hal_error_t hal_rpc_send(const uint8_t * const buf, const size_t len);
+extern hal_error_t hal_rpc_recv(uint8_t * const buf, size_t * const len);
 
 // extern hal_error_t hal_rpc_sendto(const uint8_t * const buf, const size_t len, void *opaque);
 // extern hal_error_t hal_rpc_recvfrom(uint8_t * const buf, size_t * const len, void **opaque);
 
-extern hal_error_t hal_rpc_client_transport_init(void **connection_context);
-extern hal_error_t hal_rpc_client_transport_close(void *connection_context);
-extern hal_error_t hal_rpc_client_transport_init_ip(const char *hostip, const char *hostname, void **connection_context);
+extern hal_error_t hal_rpc_client_transport_init();
+extern hal_error_t hal_rpc_client_transport_close();
+extern hal_error_t hal_rpc_client_transport_init_ip(const char *hostip, const char *hostname);
 
 // extern hal_error_t hal_rpc_server_transport_init(void);
 // extern hal_error_t hal_rpc_server_transport_close(void);
