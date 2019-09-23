@@ -439,35 +439,31 @@ static CK_RV _p11_error_from_hal(const hal_error_t err, const char * const file,
 * Mutex implementation using POSIX mutexes.
 */
 
-#if USE_PTHREADS
+#define USE_WINDOWS_THREADS 1
+
+#if USE_WINDOWS_THREADS
 
 static CK_RV posix_mutex_create(CK_VOID_PTR_PTR ppMutex)
 {
-    pthread_mutex_t *m = NULL;
+    HANDLE hMutex;
     CK_RV rv;
 
     if (ppMutex == NULL)
         lose(CKR_GENERAL_ERROR);
 
-    if ((m = malloc(sizeof(*m))) == NULL)
+    hMutex = CreateMutex(
+        NULL,  // default security attributes
+        FALSE, // initially not owned
+        NULL   // unamed mutex
+    );
+
+    if (hMutex == NULL)
         lose(CKR_HOST_MEMORY);
 
-    switch (pthread_mutex_init(m, NULL)) {
+    *ppMutex = hMutex;
 
-    case 0:
-        *ppMutex = m;
-        return CKR_OK;
-
-    case ENOMEM:
-        lose(CKR_HOST_MEMORY);
-
-    default:
-        lose(CKR_GENERAL_ERROR);
-    }
-
+    return CKR_OK;
 fail:
-    if (m != NULL)
-        free(m);
     return rv;
 }
 
@@ -478,24 +474,8 @@ static CK_RV posix_mutex_destroy(CK_VOID_PTR pMutex)
     if (pMutex == NULL)
         lose(CKR_MUTEX_BAD);
 
-    switch (pthread_mutex_destroy(pMutex)) {
-
-    case 0:
-        free(pMutex);
-        return CKR_OK;
-
-    case EINVAL:
-        lose(CKR_MUTEX_BAD);
-
-    case EBUSY:
-        /*
-        * PKCS #11 mutex semantics are a bad match for POSIX here,
-        * leaving us only the nuclear option.  Feh.  Fall through.
-        */
-
-    default:
-        lose(CKR_GENERAL_ERROR);
-    }
+    if (CloseHandle(pMutex)) return CKR_OK;
+    else lose(CKR_GENERAL_ERROR);
 
 fail:
     return rv;
@@ -504,20 +484,20 @@ fail:
 static CK_RV posix_mutex_lock(CK_VOID_PTR pMutex)
 {
     CK_RV rv;
+    DWORD dwWaitResult;
 
     if (pMutex == NULL)
         lose(CKR_MUTEX_BAD);
 
-    switch (pthread_mutex_lock(pMutex)) {
+    dwWaitResult = WaitForSingleObject(
+        pMutex,    // handle to mutex
+        INFINITE);  // no time-out interval
 
-    case 0:
-        return CKR_OK;
-
-    case EINVAL:
-        lose(CKR_MUTEX_BAD);
-
-    default:
-        lose(CKR_GENERAL_ERROR);
+    switch (dwWaitResult) {
+        case WAIT_OBJECT_0:
+            return CKR_OK;
+        default:
+            lose(CKR_GENERAL_ERROR);
     }
 
 fail:
@@ -531,26 +511,18 @@ static CK_RV posix_mutex_unlock(CK_VOID_PTR pMutex)
     if (pMutex == NULL)
         lose(CKR_MUTEX_BAD);
 
-    switch (pthread_mutex_unlock(pMutex)) {
-
-    case 0:
+    if (ReleaseMutex(pMutex))
         return CKR_OK;
-
-    case EINVAL:
+    else
+    {
         lose(CKR_MUTEX_BAD);
-
-    case EPERM:
-        lose(CKR_MUTEX_NOT_LOCKED);
-
-    default:
-        lose(CKR_GENERAL_ERROR);
     }
 
 fail:
     return rv;
 }
 
-#endif /* USE_PTHREADS */
+#endif /* USE_WINDOWS_THREADS */
 
 
 
@@ -2455,7 +2427,7 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
         }
 
         else if ((a->flags & CKF_OS_LOCKING_OK) != 0) {
-#if USE_PTHREADS
+#if USE_WINDOWS_THREADS
             mutex_cb_create = posix_mutex_create;
             mutex_cb_destroy = posix_mutex_destroy;
             mutex_cb_lock = posix_mutex_lock;

@@ -39,6 +39,9 @@
     <ClInclude Include="pkcs11f.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="pkcs11-attributes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -59,7 +62,7 @@
     <ClCompile Include="internal.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pkcs11.c">
+    <ClCompile Include="pkcs11.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
