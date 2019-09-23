@@ -165,7 +165,10 @@
   <ItemGroup>
     <ClInclude Include="diamondhsm-ksp.h" />
     <ClInclude Include="internal.h" />
+    <ClInclude Include="pkcs11.h" />
     <ClInclude Include="pkcs11-types.h" />
+    <ClInclude Include="pkcs11f.h" />
+    <ClInclude Include="pkcs11t.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
@@ -175,6 +178,7 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="diamondhsm-cng-ksp.h" />
     <ClCompile Include="internal.cpp" />
+    <ClCompile Include="pkcs11.c" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

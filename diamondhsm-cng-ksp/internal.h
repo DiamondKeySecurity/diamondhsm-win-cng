@@ -53,6 +53,7 @@ struct KeyMatchData
 
 LPCSTR DKEYKspGetUserPin();
 LPCSTR DKEYKspGetHostAddr();
+DWORD DKEYRSAKeyLen();
 
 SECURITY_STATUS NormalizeNteStatus(__in NTSTATUS NtStatus);
 

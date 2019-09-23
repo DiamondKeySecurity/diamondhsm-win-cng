@@ -39,6 +39,11 @@ LPCSTR DKEYKspGetHostAddr()
 	return "10.1.10.9";
 }
 
+DWORD DKEYRSAKeyLen()
+{
+    return 2048;
+}
+
 // buffer must be at least 40 characters
 char *uuid_to_string(hal_uuid_t uuid, char *buffer, size_t buffer_count)
 {
