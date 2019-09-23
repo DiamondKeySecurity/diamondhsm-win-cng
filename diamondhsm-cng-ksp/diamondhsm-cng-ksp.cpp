@@ -90,6 +90,9 @@ _Check_return_ NTSTATUS WINAPI GetKeyStorageInterface(
 	return ERROR_SUCCESS;
 }
 
+static BOOL g_bConnectionOpen = FALSE;
+static DWORD g_dwNumOpenProviders = 0;
+
 // Initializes the provider.It is implemented by your key storage provider(KSP) and called by the NCryptOpenStorageProvider function.
 // Parameters
 // phProvider[out] - A pointer to a NCRYPT_PROV_HANDLE variable that receives the provider handle.
@@ -114,7 +117,6 @@ SECURITY_STATUS WINAPI OpenProvider(
 	DKEY_KSP_PROVIDER *pProvider = NULL;
 	DWORD cbLength = 0;
 	size_t cbProviderName = 0;
-    BOOL transport_open = FALSE;
 	UNREFERENCED_PARAMETER(dwFlags);
 
 	// Validate input parameters.
@@ -153,40 +155,43 @@ SECURITY_STATUS WINAPI OpenProvider(
 	pProvider->dwFlags = 0;
 	pProvider->pszContext = NULL;
 	pProvider->hal_user = HAL_USER_NORMAL;
-    pProvider->client = hal_client_handle_t { 0 };
+    pProvider->client = hal_client_handle_t { 0 }; // this is always 0
     pProvider->session = hal_session_handle_t { 0 };
 
     // connect to the HSM
-    hal_error_t err;
-    if ((err = hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm")) != HAL_OK)
+    if (g_bConnectionOpen == FALSE)
     {
-        status = NTE_DEVICE_NOT_FOUND;
-        goto cleanup;
-    }
-    else
-    {
-        transport_open = TRUE;
-    }
-
-    // login
-    if ((err = hal_rpc_login(pProvider->client, HAL_USER_NORMAL, DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()))) != HAL_OK)
-    {
-        status = NTE_VALIDATION_FAILED;
-        goto cleanup;
+        status = ConnectToHSM(pProvider->client);
+        if (status != ERROR_SUCCESS)
+        {
+            goto cleanup;
+        }
+        else
+        {
+            g_bConnectionOpen = TRUE;
+        }
     }
 
 	//Assign the output value.
 	*phProvider = (NCRYPT_PROV_HANDLE)pProvider;
 	pProvider = NULL;
 	status = ERROR_SUCCESS;
+
+    ++g_dwNumOpenProviders;
+
 cleanup:
 	if (pProvider)
 	{
 		HeapFree(GetProcessHeap(), 0, pProvider);
 	}
-    if (status != ERROR_SUCCESS && transport_open == TRUE)
+    if (status != ERROR_SUCCESS &&
+        g_bConnectionOpen == TRUE &&
+        g_dwNumOpenProviders == 0)
     {
-        hal_rpc_client_transport_close();
+        // we had an error there shouldn't be any open providers
+        CloseConnectionToHSM();
+
+        g_bConnectionOpen = FALSE;
     }
 	return status;
 }
@@ -1018,10 +1023,17 @@ SECURITY_STATUS WINAPI FreeProvider(
 		goto cleanup;
 	}
 
-    // log out and disconnect
-    hal_rpc_logout(pProvider->client);
+    // reduce the number of providers
+    --g_dwNumOpenProviders;
 
-    hal_rpc_client_transport_close();
+    if (g_bConnectionOpen == TRUE &&
+        g_dwNumOpenProviders == 0)
+    {
+        // we had an error there shouldn't be any open providers
+        CloseConnectionToHSM();
+
+        g_bConnectionOpen = FALSE;
+    }
 
 	// Free context.
 	if (pProvider->pszContext)
