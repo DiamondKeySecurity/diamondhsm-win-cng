@@ -66,6 +66,12 @@
 #include <ncrypt.h>
 #include <ncrypt_provider.h>
 #include <sslprovider.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <assert.h>
+#include <memory>
 
 #include "pkcs11-types.h"
 

@@ -1131,284 +1131,284 @@ static int p11_object_pkey_open(const p11_session_t *session,
             pkey, &object->uuid)));
 }
 
-/*
-* Create pkeys to go with PKCS #11 key objects loaded by C_CreateObject().
-*/
-
-static int p11_object_create_rsa_public_key(const p11_session_t * const session,
-    const handle_flavor_t flavor,
-    const CK_ATTRIBUTE_PTR _template,
-    const CK_ULONG template_len,
-    const p11_descriptor_t * const descriptor,
-    CK_OBJECT_HANDLE_PTR phObject,
-    const hal_key_flags_t flags)
-{
-    const hal_pkey_attribute_t extra[] = {
-        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
-    };
-
-    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    uint8_t keybuf[hal_rsa_key_t_size];
-    hal_rsa_key_t *key = NULL;
-    hal_uuid_t uuid;
-
-    const uint8_t *cka_modulus = NULL;
-    size_t cka_modulus_len = 0;
-    const uint8_t *cka_public_exponent = const_0x010001;
-    size_t cka_public_exponent_len = sizeof(const_0x010001);
-
-    for (int i = 0; i < template_len; i++) {
-        const void * const val = _template[i].pValue;
-        const size_t       len = _template[i].ulValueLen;
-        switch (_template[i].type) {
-        case CKA_MODULUS:          cka_modulus = val; cka_modulus_len = len; break;
-        case CKA_PUBLIC_EXPONENT:  cka_public_exponent = val; cka_public_exponent_len = len; break;
-        }
-    }
-
-    int ok = hal_check(hal_rsa_key_load_public(&key, keybuf, sizeof(keybuf),
-        cka_modulus, cka_modulus_len,
-        cka_public_exponent, cka_public_exponent_len));
-
-    if (ok) {
-        uint8_t der[hal_rsa_public_key_to_der_len(key)];
-        ok = (hal_check(hal_rsa_public_key_to_der(key, der, NULL, sizeof(der))) &&
-            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
-                p11_session_hal_session(session),
-                &pkey, &uuid, der, sizeof(der), flags)));
-    }
-
-    if (ok)
-        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
-            extra, sizeof(extra) / sizeof(*extra));
-
-    if (ok) {
-        *phObject = p11_object_allocate(flavor, &uuid, session);
-        ok = *phObject != CK_INVALID_HANDLE;
-    }
-
-    if (!ok && pkey.handle != HAL_HANDLE_NONE)
-        (void)hal_rpc_pkey_delete(pkey);
-    else
-        (void)hal_rpc_pkey_close(pkey);
-
-    return ok;
-}
-
-static int p11_object_create_ec_public_key(const p11_session_t * const session,
-    const handle_flavor_t flavor,
-    const CK_ATTRIBUTE_PTR _template,
-    const CK_ULONG template_len,
-    const p11_descriptor_t * const descriptor,
-    CK_OBJECT_HANDLE_PTR phObject,
-    const hal_key_flags_t flags)
-{
-    const hal_pkey_attribute_t extra[] = {
-        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
-    };
-
-    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    uint8_t keybuf[hal_ecdsa_key_t_size];
-    hal_ecdsa_key_t *key = NULL;
-    hal_curve_name_t curve;
-    hal_uuid_t uuid;
-
-    const uint8_t *cka_ec_point = NULL;  size_t cka_ec_point_len = 0;
-    const uint8_t *cka_ec_params = NULL;  size_t cka_ec_params_len = 0;
-
-    for (int i = 0; i < template_len; i++) {
-        const void * const val = _template[i].pValue;
-        const size_t       len = _template[i].ulValueLen;
-        switch (_template[i].type) {
-        case CKA_EC_POINT:  cka_ec_point = val; cka_ec_point_len = len; break;
-        case CKA_EC_PARAMS: cka_ec_params = val; cka_ec_params_len = len; break;
-        }
-    }
-
-    int ok
-        = (ec_curve_oid_to_name(cka_ec_params, cka_ec_params_len, &curve) &&
-            hal_check(hal_ecdsa_key_from_ecpoint(&key, keybuf, sizeof(keybuf),
-                cka_ec_point, cka_ec_point_len,
-                curve)));
-
-    if (ok) {
-        uint8_t der[hal_ecdsa_public_key_to_der_len(key)];
-        ok = (hal_check(hal_ecdsa_public_key_to_der(key, der, NULL, sizeof(der))) &&
-            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
-                p11_session_hal_session(session),
-                &pkey, &uuid, der, sizeof(der), flags)));
-    }
-
-    if (ok)
-        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
-            extra, sizeof(extra) / sizeof(*extra));
-
-    if (ok) {
-        *phObject = p11_object_allocate(flavor, &uuid, session);
-        ok = *phObject != CK_INVALID_HANDLE;
-    }
-
-    if (!ok && pkey.handle != HAL_HANDLE_NONE)
-        (void)hal_rpc_pkey_delete(pkey);
-    else
-        (void)hal_rpc_pkey_close(pkey);
-
-    return ok;
-}
-
-static int p11_object_create_rsa_private_key(const p11_session_t * const session,
-    const handle_flavor_t flavor,
-    const CK_ATTRIBUTE_PTR _template,
-    const CK_ULONG template_len,
-    const p11_descriptor_t * const descriptor,
-    CK_OBJECT_HANDLE_PTR phObject,
-    const hal_key_flags_t flags)
-{
-    const hal_pkey_attribute_t extra[] = {
-        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
-    { .type = CKA_ALWAYS_SENSITIVE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
-    { .type = CKA_NEVER_EXTRACTABLE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
-    };
-
-    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    uint8_t keybuf[hal_rsa_key_t_size];
-    hal_rsa_key_t *key = NULL;
-    hal_uuid_t uuid;
-
-    const uint8_t *cka_modulus = NULL;   size_t cka_modulus_len = 0;
-    const uint8_t *cka_private_exponent = NULL;   size_t cka_private_exponent_len = 0;
-    const uint8_t *cka_prime_1 = NULL;   size_t cka_prime_1_len = 0;
-    const uint8_t *cka_prime_2 = NULL;   size_t cka_prime_2_len = 0;
-    const uint8_t *cka_exponent_1 = NULL;   size_t cka_exponent_1_len = 0;
-    const uint8_t *cka_exponent_2 = NULL;   size_t cka_exponent_2_len = 0;
-    const uint8_t *cka_coefficient = NULL;   size_t cka_coefficient_len = 0;
-
-    const uint8_t *cka_public_exponent = const_0x010001;
-    size_t cka_public_exponent_len = sizeof(const_0x010001);
-
-    for (int i = 0; i < template_len; i++) {
-        const void * const val = _template[i].pValue;
-        const size_t       len = _template[i].ulValueLen;
-        switch (_template[i].type) {
-        case CKA_MODULUS:          cka_modulus = val; cka_modulus_len = len; break;
-        case CKA_PUBLIC_EXPONENT:  cka_public_exponent = val; cka_public_exponent_len = len; break;
-        case CKA_PRIVATE_EXPONENT: cka_private_exponent = val; cka_private_exponent_len = len; break;
-        case CKA_PRIME_1:          cka_prime_1 = val; cka_prime_1_len = len; break;
-        case CKA_PRIME_2:          cka_prime_2 = val; cka_prime_2_len = len; break;
-        case CKA_EXPONENT_1:       cka_exponent_1 = val; cka_exponent_1_len = len; break;
-        case CKA_EXPONENT_2:       cka_exponent_2 = val; cka_exponent_2_len = len; break;
-        case CKA_COEFFICIENT:      cka_coefficient = val; cka_coefficient_len = len; break;
-        }
-    }
-
-    int ok = hal_check(hal_rsa_key_load_private(&key, keybuf, sizeof(keybuf),
-        cka_modulus, cka_modulus_len,
-        cka_public_exponent, cka_public_exponent_len,
-        cka_private_exponent, cka_private_exponent_len,
-        cka_prime_1, cka_prime_1_len,
-        cka_prime_2, cka_prime_2_len,
-        cka_coefficient, cka_coefficient_len,
-        cka_exponent_1, cka_exponent_1_len,
-        cka_exponent_2, cka_exponent_2_len));
-    if (ok) {
-        uint8_t der[hal_rsa_private_key_to_der_len(key)];
-        ok = (hal_check(hal_rsa_private_key_to_der(key, der, NULL, sizeof(der))) &&
-            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
-                p11_session_hal_session(session),
-                &pkey, &uuid, der, sizeof(der), flags)));
-        memset(der, 0, sizeof(der));
-    }
-
-    memset(keybuf, 0, sizeof(keybuf));
-
-    if (ok)
-        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
-            extra, sizeof(extra) / sizeof(*extra));
-
-    if (ok) {
-        *phObject = p11_object_allocate(flavor, &uuid, session);
-        ok = *phObject != CK_INVALID_HANDLE;
-    }
-
-    if (!ok && pkey.handle != HAL_HANDLE_NONE)
-        (void)hal_rpc_pkey_delete(pkey);
-    else
-        (void)hal_rpc_pkey_close(pkey);
-
-    return ok;
-}
-
-static int p11_object_create_ec_private_key(const p11_session_t * const session,
-    const handle_flavor_t flavor,
-    const CK_ATTRIBUTE_PTR _template,
-    const CK_ULONG template_len,
-    const p11_descriptor_t * const descriptor,
-    CK_OBJECT_HANDLE_PTR phObject,
-    const hal_key_flags_t flags)
-{
-    const hal_pkey_attribute_t extra[] = {
-        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
-    { .type = CKA_ALWAYS_SENSITIVE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
-    { .type = CKA_NEVER_EXTRACTABLE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
-    };
-
-    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    uint8_t keybuf[hal_ecdsa_key_t_size];
-    hal_ecdsa_key_t *key = NULL;
-    hal_curve_name_t curve;
-    hal_uuid_t uuid;
-
-    const uint8_t *cka_value = NULL;  size_t cka_value_len = 0;
-    const uint8_t *cka_ec_point = NULL;  size_t cka_ec_point_len = 0;
-    const uint8_t *cka_ec_params = NULL;  size_t cka_ec_params_len = 0;
-
-    for (int i = 0; i < template_len; i++) {
-        const void * const val = _template[i].pValue;
-        const size_t       len = _template[i].ulValueLen;
-        switch (_template[i].type) {
-        case CKA_VALUE:     cka_value = val; cka_value_len = len; break;
-        case CKA_EC_POINT:  cka_ec_point = val; cka_ec_point_len = len; break;
-        case CKA_EC_PARAMS: cka_ec_params = val; cka_ec_params_len = len; break;
-        }
-    }
-
-    int ok
-        = (ec_curve_oid_to_name(cka_ec_params, cka_ec_params_len, &curve) &&
-            hal_check(hal_ecdsa_key_load_private(&key, keybuf, sizeof(keybuf), curve,
-                cka_ec_point + 1 + 0 * cka_ec_point_len / 2,
-                cka_ec_point_len / 2,
-                cka_ec_point + 1 + 1 * cka_ec_point_len / 2,
-                cka_ec_point_len / 2,
-                cka_value,
-                cka_value_len)));
-
-    if (ok) {
-        uint8_t der[hal_ecdsa_private_key_to_der_len(key)];
-        ok = (hal_check(hal_ecdsa_private_key_to_der(key, der, NULL, sizeof(der))) &&
-            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
-                p11_session_hal_session(session),
-                &pkey, &uuid, der, sizeof(der), flags)));
-        memset(der, 0, sizeof(der));
-    }
-
-    memset(keybuf, 0, sizeof(keybuf));
-
-    if (ok)
-        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
-            extra, sizeof(extra) / sizeof(*extra));
-
-    if (ok) {
-        *phObject = p11_object_allocate(flavor, &uuid, session);
-        ok = *phObject != CK_INVALID_HANDLE;
-    }
-
-    if (!ok && pkey.handle != HAL_HANDLE_NONE)
-        (void)hal_rpc_pkey_delete(pkey);
-    else
-        (void)hal_rpc_pkey_close(pkey);
-
-    return ok;
-}
+///*
+//* Create pkeys to go with PKCS #11 key objects loaded by C_CreateObject().
+//*/
+//
+//static int p11_object_create_rsa_public_key(const p11_session_t * const session,
+//    const handle_flavor_t flavor,
+//    const CK_ATTRIBUTE_PTR _template,
+//    const CK_ULONG template_len,
+//    const p11_descriptor_t * const descriptor,
+//    CK_OBJECT_HANDLE_PTR phObject,
+//    const hal_key_flags_t flags)
+//{
+//    const hal_pkey_attribute_t extra[] = {
+//        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
+//    };
+//
+//    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
+//    uint8_t keybuf[hal_rsa_key_t_size];
+//    hal_rsa_key_t *key = NULL;
+//    hal_uuid_t uuid;
+//
+//    const uint8_t *cka_modulus = NULL;
+//    size_t cka_modulus_len = 0;
+//    const uint8_t *cka_public_exponent = const_0x010001;
+//    size_t cka_public_exponent_len = sizeof(const_0x010001);
+//
+//    for (int i = 0; i < template_len; i++) {
+//        const void * const val = _template[i].pValue;
+//        const size_t       len = _template[i].ulValueLen;
+//        switch (_template[i].type) {
+//        case CKA_MODULUS:          cka_modulus = val; cka_modulus_len = len; break;
+//        case CKA_PUBLIC_EXPONENT:  cka_public_exponent = val; cka_public_exponent_len = len; break;
+//        }
+//    }
+//
+//    int ok = hal_check(hal_rsa_key_load_public(&key, keybuf, sizeof(keybuf),
+//        cka_modulus, cka_modulus_len,
+//        cka_public_exponent, cka_public_exponent_len));
+//
+//    if (ok) {
+//        uint8_t der[hal_rsa_public_key_to_der_len(key)];
+//        ok = (hal_check(hal_rsa_public_key_to_der(key, der, NULL, sizeof(der))) &&
+//            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
+//                p11_session_hal_session(session),
+//                &pkey, &uuid, der, sizeof(der), flags)));
+//    }
+//
+//    if (ok)
+//        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
+//            extra, sizeof(extra) / sizeof(*extra));
+//
+//    if (ok) {
+//        *phObject = p11_object_allocate(flavor, &uuid, session);
+//        ok = *phObject != CK_INVALID_HANDLE;
+//    }
+//
+//    if (!ok && pkey.handle != HAL_HANDLE_NONE)
+//        (void)hal_rpc_pkey_delete(pkey);
+//    else
+//        (void)hal_rpc_pkey_close(pkey);
+//
+//    return ok;
+//}
+//
+//static int p11_object_create_ec_public_key(const p11_session_t * const session,
+//    const handle_flavor_t flavor,
+//    const CK_ATTRIBUTE_PTR _template,
+//    const CK_ULONG template_len,
+//    const p11_descriptor_t * const descriptor,
+//    CK_OBJECT_HANDLE_PTR phObject,
+//    const hal_key_flags_t flags)
+//{
+//    const hal_pkey_attribute_t extra[] = {
+//        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
+//    };
+//
+//    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
+//    uint8_t keybuf[hal_ecdsa_key_t_size];
+//    hal_ecdsa_key_t *key = NULL;
+//    hal_curve_name_t curve;
+//    hal_uuid_t uuid;
+//
+//    const uint8_t *cka_ec_point = NULL;  size_t cka_ec_point_len = 0;
+//    const uint8_t *cka_ec_params = NULL;  size_t cka_ec_params_len = 0;
+//
+//    for (int i = 0; i < template_len; i++) {
+//        const void * const val = _template[i].pValue;
+//        const size_t       len = _template[i].ulValueLen;
+//        switch (_template[i].type) {
+//        case CKA_EC_POINT:  cka_ec_point = val; cka_ec_point_len = len; break;
+//        case CKA_EC_PARAMS: cka_ec_params = val; cka_ec_params_len = len; break;
+//        }
+//    }
+//
+//    int ok
+//        = (ec_curve_oid_to_name(cka_ec_params, cka_ec_params_len, &curve) &&
+//            hal_check(hal_ecdsa_key_from_ecpoint(&key, keybuf, sizeof(keybuf),
+//                cka_ec_point, cka_ec_point_len,
+//                curve)));
+//
+//    if (ok) {
+//        uint8_t der[hal_ecdsa_public_key_to_der_len(key)];
+//        ok = (hal_check(hal_ecdsa_public_key_to_der(key, der, NULL, sizeof(der))) &&
+//            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
+//                p11_session_hal_session(session),
+//                &pkey, &uuid, der, sizeof(der), flags)));
+//    }
+//
+//    if (ok)
+//        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
+//            extra, sizeof(extra) / sizeof(*extra));
+//
+//    if (ok) {
+//        *phObject = p11_object_allocate(flavor, &uuid, session);
+//        ok = *phObject != CK_INVALID_HANDLE;
+//    }
+//
+//    if (!ok && pkey.handle != HAL_HANDLE_NONE)
+//        (void)hal_rpc_pkey_delete(pkey);
+//    else
+//        (void)hal_rpc_pkey_close(pkey);
+//
+//    return ok;
+//}
+//
+//static int p11_object_create_rsa_private_key(const p11_session_t * const session,
+//    const handle_flavor_t flavor,
+//    const CK_ATTRIBUTE_PTR _template,
+//    const CK_ULONG template_len,
+//    const p11_descriptor_t * const descriptor,
+//    CK_OBJECT_HANDLE_PTR phObject,
+//    const hal_key_flags_t flags)
+//{
+//    const hal_pkey_attribute_t extra[] = {
+//        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
+//    { .type = CKA_ALWAYS_SENSITIVE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
+//    { .type = CKA_NEVER_EXTRACTABLE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
+//    };
+//
+//    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
+//    uint8_t keybuf[hal_rsa_key_t_size];
+//    hal_rsa_key_t *key = NULL;
+//    hal_uuid_t uuid;
+//
+//    const uint8_t *cka_modulus = NULL;   size_t cka_modulus_len = 0;
+//    const uint8_t *cka_private_exponent = NULL;   size_t cka_private_exponent_len = 0;
+//    const uint8_t *cka_prime_1 = NULL;   size_t cka_prime_1_len = 0;
+//    const uint8_t *cka_prime_2 = NULL;   size_t cka_prime_2_len = 0;
+//    const uint8_t *cka_exponent_1 = NULL;   size_t cka_exponent_1_len = 0;
+//    const uint8_t *cka_exponent_2 = NULL;   size_t cka_exponent_2_len = 0;
+//    const uint8_t *cka_coefficient = NULL;   size_t cka_coefficient_len = 0;
+//
+//    const uint8_t *cka_public_exponent = const_0x010001;
+//    size_t cka_public_exponent_len = sizeof(const_0x010001);
+//
+//    for (int i = 0; i < template_len; i++) {
+//        const void * const val = _template[i].pValue;
+//        const size_t       len = _template[i].ulValueLen;
+//        switch (_template[i].type) {
+//        case CKA_MODULUS:          cka_modulus = val; cka_modulus_len = len; break;
+//        case CKA_PUBLIC_EXPONENT:  cka_public_exponent = val; cka_public_exponent_len = len; break;
+//        case CKA_PRIVATE_EXPONENT: cka_private_exponent = val; cka_private_exponent_len = len; break;
+//        case CKA_PRIME_1:          cka_prime_1 = val; cka_prime_1_len = len; break;
+//        case CKA_PRIME_2:          cka_prime_2 = val; cka_prime_2_len = len; break;
+//        case CKA_EXPONENT_1:       cka_exponent_1 = val; cka_exponent_1_len = len; break;
+//        case CKA_EXPONENT_2:       cka_exponent_2 = val; cka_exponent_2_len = len; break;
+//        case CKA_COEFFICIENT:      cka_coefficient = val; cka_coefficient_len = len; break;
+//        }
+//    }
+//
+//    int ok = hal_check(hal_rsa_key_load_private(&key, keybuf, sizeof(keybuf),
+//        cka_modulus, cka_modulus_len,
+//        cka_public_exponent, cka_public_exponent_len,
+//        cka_private_exponent, cka_private_exponent_len,
+//        cka_prime_1, cka_prime_1_len,
+//        cka_prime_2, cka_prime_2_len,
+//        cka_coefficient, cka_coefficient_len,
+//        cka_exponent_1, cka_exponent_1_len,
+//        cka_exponent_2, cka_exponent_2_len));
+//    if (ok) {
+//        uint8_t der[hal_rsa_private_key_to_der_len(key)];
+//        ok = (hal_check(hal_rsa_private_key_to_der(key, der, NULL, sizeof(der))) &&
+//            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
+//                p11_session_hal_session(session),
+//                &pkey, &uuid, der, sizeof(der), flags)));
+//        memset(der, 0, sizeof(der));
+//    }
+//
+//    memset(keybuf, 0, sizeof(keybuf));
+//
+//    if (ok)
+//        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
+//            extra, sizeof(extra) / sizeof(*extra));
+//
+//    if (ok) {
+//        *phObject = p11_object_allocate(flavor, &uuid, session);
+//        ok = *phObject != CK_INVALID_HANDLE;
+//    }
+//
+//    if (!ok && pkey.handle != HAL_HANDLE_NONE)
+//        (void)hal_rpc_pkey_delete(pkey);
+//    else
+//        (void)hal_rpc_pkey_close(pkey);
+//
+//    return ok;
+//}
+//
+//static int p11_object_create_ec_private_key(const p11_session_t * const session,
+//    const handle_flavor_t flavor,
+//    const CK_ATTRIBUTE_PTR _template,
+//    const CK_ULONG template_len,
+//    const p11_descriptor_t * const descriptor,
+//    CK_OBJECT_HANDLE_PTR phObject,
+//    const hal_key_flags_t flags)
+//{
+//    const hal_pkey_attribute_t extra[] = {
+//        { .type = CKA_LOCAL,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
+//    { .type = CKA_ALWAYS_SENSITIVE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) },
+//    { .type = CKA_NEVER_EXTRACTABLE,.value = &const_CK_FALSE,.length = sizeof(const_CK_FALSE) }
+//    };
+//
+//    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
+//    uint8_t keybuf[hal_ecdsa_key_t_size];
+//    hal_ecdsa_key_t *key = NULL;
+//    hal_curve_name_t curve;
+//    hal_uuid_t uuid;
+//
+//    const uint8_t *cka_value = NULL;  size_t cka_value_len = 0;
+//    const uint8_t *cka_ec_point = NULL;  size_t cka_ec_point_len = 0;
+//    const uint8_t *cka_ec_params = NULL;  size_t cka_ec_params_len = 0;
+//
+//    for (int i = 0; i < template_len; i++) {
+//        const void * const val = _template[i].pValue;
+//        const size_t       len = _template[i].ulValueLen;
+//        switch (_template[i].type) {
+//        case CKA_VALUE:     cka_value = val; cka_value_len = len; break;
+//        case CKA_EC_POINT:  cka_ec_point = val; cka_ec_point_len = len; break;
+//        case CKA_EC_PARAMS: cka_ec_params = val; cka_ec_params_len = len; break;
+//        }
+//    }
+//
+//    int ok
+//        = (ec_curve_oid_to_name(cka_ec_params, cka_ec_params_len, &curve) &&
+//            hal_check(hal_ecdsa_key_load_private(&key, keybuf, sizeof(keybuf), curve,
+//                cka_ec_point + 1 + 0 * cka_ec_point_len / 2,
+//                cka_ec_point_len / 2,
+//                cka_ec_point + 1 + 1 * cka_ec_point_len / 2,
+//                cka_ec_point_len / 2,
+//                cka_value,
+//                cka_value_len)));
+//
+//    if (ok) {
+//        uint8_t der[hal_ecdsa_private_key_to_der_len(key)];
+//        ok = (hal_check(hal_ecdsa_private_key_to_der(key, der, NULL, sizeof(der))) &&
+//            hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
+//                p11_session_hal_session(session),
+//                &pkey, &uuid, der, sizeof(der), flags)));
+//        memset(der, 0, sizeof(der));
+//    }
+//
+//    memset(keybuf, 0, sizeof(keybuf));
+//
+//    if (ok)
+//        ok = p11_attributes_set(pkey, _template, template_len, descriptor,
+//            extra, sizeof(extra) / sizeof(*extra));
+//
+//    if (ok) {
+//        *phObject = p11_object_allocate(flavor, &uuid, session);
+//        ok = *phObject != CK_INVALID_HANDLE;
+//    }
+//
+//    if (!ok && pkey.handle != HAL_HANDLE_NONE)
+//        (void)hal_rpc_pkey_delete(pkey);
+//    else
+//        (void)hal_rpc_pkey_close(pkey);
+//
+//    return ok;
+//}
 
 
 
@@ -2934,143 +2934,145 @@ CK_RV C_CreateObject(CK_SESSION_HANDLE hSession,
     CK_ULONG ulCount,
     CK_OBJECT_HANDLE_PTR phObject)
 {
-    ENTER_PUBLIC_FUNCTION(C_CreateObject);
-
-    p11_session_t *session;
-    CK_RV rv;
-
-    mutex_lock_or_return_failure(p11_global_mutex);
-
-    if ((session = p11_session_find(hSession)) == NULL)
-        lose(CKR_SESSION_HANDLE_INVALID);
-
-    if (pTemplate == NULL || phObject == NULL)
-        lose(CKR_ARGUMENTS_BAD);
-
-    const CK_OBJECT_CLASS * const cka_class = p11_attribute_find_value_in_template(CKA_CLASS, pTemplate, ulCount);
-    const CK_KEY_TYPE     * const cka_key_type = p11_attribute_find_value_in_template(CKA_KEY_TYPE, pTemplate, ulCount);
-    const CK_BBOOL        * const cka_token = p11_attribute_find_value_in_template(CKA_TOKEN, pTemplate, ulCount);
-    const CK_BBOOL        * const cka_private = p11_attribute_find_value_in_template(CKA_PRIVATE, pTemplate, ulCount);
-    const CK_BBOOL        * const cka_extractable = p11_attribute_find_value_in_template(CKA_EXTRACTABLE, pTemplate, ulCount);
-
-    if (cka_class == NULL)
-        lose(CKR_TEMPLATE_INCOMPLETE);
-
-    switch (*cka_class) {
-    case CKO_PUBLIC_KEY:
-    case CKO_PRIVATE_KEY:
-    case CKO_SECRET_KEY:
-        break;
-    default:
-        lose(CKR_TEMPLATE_INCONSISTENT);
-    }
-
-    if (cka_key_type == NULL)
-        lose(CKR_TEMPLATE_INCOMPLETE);
-
-    const p11_descriptor_t * const
-        descriptor = p11_descriptor_from_key_type(*cka_class, *cka_key_type);
-
-    if (descriptor == NULL)
-        lose(CKR_TEMPLATE_INCONSISTENT);
-
-    if ((rv = p11_check_create_attributes(session, pTemplate, ulCount, descriptor)) != CKR_OK)
-        goto fail;
-
-    const handle_flavor_t flavor = p11_object_flavor_from_cka_token(cka_token);
-
-    switch (session->state) {
-    case CKS_RO_PUBLIC_SESSION:
-    case CKS_RO_USER_FUNCTIONS:
-        if (flavor == handle_flavor_token_object)
-            lose(CKR_SESSION_READ_ONLY);
-    }
-
-    hal_key_flags_t flags = flavor == handle_flavor_token_object ? HAL_KEY_FLAG_TOKEN : 0;
-
-    for (int i = 0; i < ulCount; i++)
-        p11_attribute_apply_keyusage(&flags, pTemplate[i].type, pTemplate[i].pValue);
-
-    if (cka_private != NULL && !*cka_private)
-        flags |= HAL_KEY_FLAG_PUBLIC;
-
-    if (*cka_class == CKO_PUBLIC_KEY || (cka_extractable != NULL && *cka_extractable))
-        flags |= HAL_KEY_FLAG_EXPORTABLE;
-
-    int(*handler)(const p11_session_t *session,
-        const handle_flavor_t flavor,
-        const CK_ATTRIBUTE_PTR pTemplate,
-        const CK_ULONG ulCount,
-        const p11_descriptor_t * const descriptor,
-        CK_OBJECT_HANDLE_PTR phObject,
-        const hal_key_flags_t flags) = NULL;
-
-    if (*cka_class == CKO_PUBLIC_KEY && *cka_key_type == CKK_RSA)
-        handler = p11_object_create_rsa_public_key;
-
-    if (*cka_class == CKO_PUBLIC_KEY && *cka_key_type == CKK_EC)
-        handler = p11_object_create_ec_public_key;
-
-    if (*cka_class == CKO_PRIVATE_KEY && *cka_key_type == CKK_RSA)
-        handler = p11_object_create_rsa_private_key;
-
-    if (*cka_class == CKO_PRIVATE_KEY && *cka_key_type == CKK_EC)
-        handler = p11_object_create_ec_private_key;
-
-    if (handler == NULL)
-        lose(CKR_FUNCTION_FAILED);
-
-    if (!handler(session, flavor, pTemplate, ulCount, descriptor, phObject, flags))
-        lose(CKR_FUNCTION_FAILED);
-
-    return mutex_unlock(p11_global_mutex);
-
-fail:
-    mutex_unlock_return_with_rv(rv, p11_global_mutex);
+    UNSUPPORTED_FUNCTION(C_CreateObject);
+//    ENTER_PUBLIC_FUNCTION(C_CreateObject);
+//
+//    p11_session_t *session;
+//    CK_RV rv;
+//
+//    mutex_lock_or_return_failure(p11_global_mutex);
+//
+//    if ((session = p11_session_find(hSession)) == NULL)
+//        lose(CKR_SESSION_HANDLE_INVALID);
+//
+//    if (pTemplate == NULL || phObject == NULL)
+//        lose(CKR_ARGUMENTS_BAD);
+//
+//    const CK_OBJECT_CLASS * const cka_class = p11_attribute_find_value_in_template(CKA_CLASS, pTemplate, ulCount);
+//    const CK_KEY_TYPE     * const cka_key_type = p11_attribute_find_value_in_template(CKA_KEY_TYPE, pTemplate, ulCount);
+//    const CK_BBOOL        * const cka_token = p11_attribute_find_value_in_template(CKA_TOKEN, pTemplate, ulCount);
+//    const CK_BBOOL        * const cka_private = p11_attribute_find_value_in_template(CKA_PRIVATE, pTemplate, ulCount);
+//    const CK_BBOOL        * const cka_extractable = p11_attribute_find_value_in_template(CKA_EXTRACTABLE, pTemplate, ulCount);
+//
+//    if (cka_class == NULL)
+//        lose(CKR_TEMPLATE_INCOMPLETE);
+//
+//    switch (*cka_class) {
+//    case CKO_PUBLIC_KEY:
+//    case CKO_PRIVATE_KEY:
+//    case CKO_SECRET_KEY:
+//        break;
+//    default:
+//        lose(CKR_TEMPLATE_INCONSISTENT);
+//    }
+//
+//    if (cka_key_type == NULL)
+//        lose(CKR_TEMPLATE_INCOMPLETE);
+//
+//    const p11_descriptor_t * const
+//        descriptor = p11_descriptor_from_key_type(*cka_class, *cka_key_type);
+//
+//    if (descriptor == NULL)
+//        lose(CKR_TEMPLATE_INCONSISTENT);
+//
+//    if ((rv = p11_check_create_attributes(session, pTemplate, ulCount, descriptor)) != CKR_OK)
+//        goto fail;
+//
+//    const handle_flavor_t flavor = p11_object_flavor_from_cka_token(cka_token);
+//
+//    switch (session->state) {
+//    case CKS_RO_PUBLIC_SESSION:
+//    case CKS_RO_USER_FUNCTIONS:
+//        if (flavor == handle_flavor_token_object)
+//            lose(CKR_SESSION_READ_ONLY);
+//    }
+//
+//    hal_key_flags_t flags = flavor == handle_flavor_token_object ? HAL_KEY_FLAG_TOKEN : 0;
+//
+//    for (int i = 0; i < ulCount; i++)
+//        p11_attribute_apply_keyusage(&flags, pTemplate[i].type, pTemplate[i].pValue);
+//
+//    if (cka_private != NULL && !*cka_private)
+//        flags |= HAL_KEY_FLAG_PUBLIC;
+//
+//    if (*cka_class == CKO_PUBLIC_KEY || (cka_extractable != NULL && *cka_extractable))
+//        flags |= HAL_KEY_FLAG_EXPORTABLE;
+//
+//    int(*handler)(const p11_session_t *session,
+//        const handle_flavor_t flavor,
+//        const CK_ATTRIBUTE_PTR pTemplate,
+//        const CK_ULONG ulCount,
+//        const p11_descriptor_t * const descriptor,
+//        CK_OBJECT_HANDLE_PTR phObject,
+//        const hal_key_flags_t flags) = NULL;
+//
+//    if (*cka_class == CKO_PUBLIC_KEY && *cka_key_type == CKK_RSA)
+//        handler = p11_object_create_rsa_public_key;
+//
+//    if (*cka_class == CKO_PUBLIC_KEY && *cka_key_type == CKK_EC)
+//        handler = p11_object_create_ec_public_key;
+//
+//    if (*cka_class == CKO_PRIVATE_KEY && *cka_key_type == CKK_RSA)
+//        handler = p11_object_create_rsa_private_key;
+//
+//    if (*cka_class == CKO_PRIVATE_KEY && *cka_key_type == CKK_EC)
+//        handler = p11_object_create_ec_private_key;
+//
+//    if (handler == NULL)
+//        lose(CKR_FUNCTION_FAILED);
+//
+//    if (!handler(session, flavor, pTemplate, ulCount, descriptor, phObject, flags))
+//        lose(CKR_FUNCTION_FAILED);
+//
+//    return mutex_unlock(p11_global_mutex);
+//
+//fail:
+//    mutex_unlock_return_with_rv(rv, p11_global_mutex);
 }
 
 CK_RV C_DestroyObject(CK_SESSION_HANDLE hSession,
     CK_OBJECT_HANDLE hObject)
 {
-    ENTER_PUBLIC_FUNCTION(C_DestroyObject);
-
-    uint8_t attributes_buffer[2 * sizeof(CK_BBOOL)];
-    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    hal_pkey_attribute_t attributes[] = {
-        [0].type = CKA_PRIVATE,
-        [1].type = CKA_TOKEN
-    };
-    CK_BBOOL cka_private;
-    CK_BBOOL cka_token;
-    p11_session_t *session;
-    CK_RV rv = CKR_OK;
-
-    mutex_lock_or_return_failure(p11_global_mutex);
-
-    session = p11_session_find(hSession);
-
-    if (!p11_object_pkey_open(session, hObject, &pkey))
-        lose(CKR_FUNCTION_FAILED);
-
-    if (!hal_check(hal_rpc_pkey_get_attributes(pkey, attributes, sizeof(attributes) / sizeof(*attributes),
-        attributes_buffer, sizeof(attributes_buffer))))
-        lose(CKR_KEY_HANDLE_INVALID);
-
-    cka_private = *(CK_BBOOL*)attributes[0].value;
-    cka_token = *(CK_BBOOL*)attributes[1].value;
-
-    if ((rv = p11_check_write_access(session, cka_private, cka_token)) != CKR_OK)
-        goto fail;
-
-    if (!hal_check(hal_rpc_pkey_delete(pkey)))
-        lose(CKR_FUNCTION_FAILED);
-
-    p11_object_free(p11_object_by_handle(hObject));
-
-fail:
-    if (pkey.handle != HAL_HANDLE_NONE)
-        (void)hal_rpc_pkey_close(pkey);
-    mutex_unlock_return_with_rv(rv, p11_global_mutex);
+    UNSUPPORTED_FUNCTION(C_DestroyObject);
+//    ENTER_PUBLIC_FUNCTION(C_DestroyObject);
+//
+//    uint8_t attributes_buffer[2 * sizeof(CK_BBOOL)];
+//    hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
+//    hal_pkey_attribute_t attributes[] = {
+//        [0].type = CKA_PRIVATE,
+//        [1].type = CKA_TOKEN
+//    };
+//    CK_BBOOL cka_private;
+//    CK_BBOOL cka_token;
+//    p11_session_t *session;
+//    CK_RV rv = CKR_OK;
+//
+//    mutex_lock_or_return_failure(p11_global_mutex);
+//
+//    session = p11_session_find(hSession);
+//
+//    if (!p11_object_pkey_open(session, hObject, &pkey))
+//        lose(CKR_FUNCTION_FAILED);
+//
+//    if (!hal_check(hal_rpc_pkey_get_attributes(pkey, attributes, sizeof(attributes) / sizeof(*attributes),
+//        attributes_buffer, sizeof(attributes_buffer))))
+//        lose(CKR_KEY_HANDLE_INVALID);
+//
+//    cka_private = *(CK_BBOOL*)attributes[0].value;
+//    cka_token = *(CK_BBOOL*)attributes[1].value;
+//
+//    if ((rv = p11_check_write_access(session, cka_private, cka_token)) != CKR_OK)
+//        goto fail;
+//
+//    if (!hal_check(hal_rpc_pkey_delete(pkey)))
+//        lose(CKR_FUNCTION_FAILED);
+//
+//    p11_object_free(p11_object_by_handle(hObject));
+//
+//fail:
+//    if (pkey.handle != HAL_HANDLE_NONE)
+//        (void)hal_rpc_pkey_close(pkey);
+//    mutex_unlock_return_with_rv(rv, p11_global_mutex);
 }
 
 CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
@@ -3102,12 +3104,12 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
         lose(CKR_OBJECT_HANDLE_INVALID);
 
     {
-        hal_pkey_attribute_t attributes[] = {
-            [0].type = CKA_CLASS,
-            [1].type = CKA_PRIVATE,
-            [2].type = CKA_TOKEN,
-            [3].type = CKA_KEY_TYPE
-        };
+        hal_pkey_attribute_t attributes[4];
+        attributes[0].type = CKA_CLASS;
+        attributes[1].type = CKA_PRIVATE;
+        attributes[2].type = CKA_TOKEN;
+        attributes[3].type = CKA_KEY_TYPE;
+ 
         uint8_t attributes_buffer[sizeof(CK_OBJECT_CLASS) + 2 * sizeof(CK_BBOOL) + sizeof(CK_KEY_TYPE)];
 
         if (!hal_check(hal_rpc_pkey_get_attributes(pkey,
@@ -3127,10 +3129,10 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
     }
 
     if (cka_class == CKO_PRIVATE_KEY || cka_class == CKO_SECRET_KEY) {
-        hal_pkey_attribute_t attributes[] = {
-            [0].type = CKA_EXTRACTABLE,
-            [1].type = CKA_SENSITIVE
-        };
+        hal_pkey_attribute_t attributes[2];
+        attributes[0].type = CKA_EXTRACTABLE;
+        attributes[1].type = CKA_SENSITIVE;
+
         uint8_t attributes_buffer[sizeof(CK_OBJECT_CLASS) + sizeof(CK_KEY_TYPE)];
 
         if (!hal_check(hal_rpc_pkey_get_attributes(pkey,
@@ -3813,12 +3815,12 @@ CK_RV C_VerifyInit(CK_SESSION_HANDLE hSession,
 
     uint8_t attributes_buffer[sizeof(CK_OBJECT_CLASS) + sizeof(CK_KEY_TYPE) + 3 * sizeof(CK_BBOOL)];
     hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    hal_pkey_attribute_t attributes[] = {
-        [0].type = CKA_KEY_TYPE,
-        [1].type = CKA_VERIFY,
-        [2].type = CKA_PRIVATE,
-        [3].type = CKA_TOKEN
-    };
+    hal_pkey_attribute_t attributes[4];
+    attributes[0].type = CKA_KEY_TYPE;
+    attributes[1].type = CKA_VERIFY;
+    attributes[2].type = CKA_PRIVATE;
+    attributes[3].type = CKA_TOKEN;
+ 
     CK_KEY_TYPE cka_key_type;
     CK_BBOOL cka_verify;
     CK_BBOOL cka_private;
