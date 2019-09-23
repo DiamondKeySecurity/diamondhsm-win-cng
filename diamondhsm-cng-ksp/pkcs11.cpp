@@ -39,12 +39,6 @@
 */
 #include "stdafx.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <assert.h>
-
 /*
 * Magic PKCS #11 macros that must be defined before including
 * pkcs11.h.  For now these are only the Unix versions, add others
@@ -759,7 +753,11 @@ static int p11_attributes_set(const hal_pkey_handle_t pkey,
     * private.
     */
 
-    hal_pkey_attribute_t attributes[template_length + descriptor->n_attributes + extra_length];
+    size_t len_attributes = template_length + descriptor->n_attributes + extra_length;
+    size_t sizeof_attributes = len_attributes * sizeof(hal_pkey_attribute_t);
+    hal_pkey_attribute_t *attributes = new hal_pkey_attribute_t[template_length + descriptor->n_attributes + extra_length];
+    std::unique_ptr<hal_pkey_attribute_t> free_attributes(attributes);
+
     unsigned n = 0;
 
     for (int i = 0; i < template_length; i++) {
@@ -770,7 +768,7 @@ static int p11_attributes_set(const hal_pkey_handle_t pkey,
         if (p11_attribute_is_sensitive(descriptor, type))
             continue;
 
-        if (n >= sizeof(attributes) / sizeof(*attributes))
+        if (n >= len_attributes)
             return 0;
 
         attributes[n].type = type;
@@ -795,7 +793,7 @@ static int p11_attributes_set(const hal_pkey_handle_t pkey,
         if (val == NULL || p11_attribute_find_in_template(type, _template, template_length) >= 0)
             continue;
 
-        if (n >= sizeof(attributes) / sizeof(*attributes))
+        if (n >= len_attributes)
             return 0;
 
         attributes[n].type = type;
@@ -809,7 +807,7 @@ static int p11_attributes_set(const hal_pkey_handle_t pkey,
     */
 
     for (int i = 0; i < extra_length; i++) {
-        if (n >= sizeof(attributes) / sizeof(*attributes))
+        if (n >= len_attributes)
             return 0;
 
         attributes[n].type = extra[i].type;
