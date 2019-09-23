@@ -42,6 +42,9 @@
     <ClInclude Include="pkcs11-attributes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="tfm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -63,6 +66,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pkcs11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tfm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="rsa.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

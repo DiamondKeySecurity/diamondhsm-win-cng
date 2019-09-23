@@ -55,6 +55,25 @@ const hal_hash_handle_t hal_hash_handle_none = { HAL_HANDLE_NONE };
 #define nargs(n) ((n) * 4)
 
 /*
+* PIN lengths.  These are somewhat arbitrary, and the current values
+* are really placeholders until we figure out something better.
+* Minimum length here is almost certainly too short for production
+* use, we allow it because most test programs fail if we insist on a
+* PIN long enough to have any real security.
+*/
+
+#ifndef HAL_PIN_MINIMUM_LENGTH
+#define HAL_PIN_MINIMUM_LENGTH          4
+#endif
+
+#ifndef HAL_PIN_MAXIMUM_LENGTH
+#define HAL_PIN_MAXIMUM_LENGTH          4096
+#endif
+
+const size_t hal_rpc_min_pin_length = HAL_PIN_MINIMUM_LENGTH;
+const size_t hal_rpc_max_pin_length = HAL_PIN_MAXIMUM_LENGTH;
+
+/*
 * Consolidate a bit of the repetitive code from the packet receive loop.
 * We're looking for a packet which is a response to the packet we sent,
 * so if the opcode is wrong, we discard and wait for another packet.
@@ -274,7 +293,7 @@ hal_error_t hal_rpc_is_logged_in(const hal_client_handle_t client,
 	return (hal_error_t)rpc_ret;
 }
 
-hal_error_t hal_rpc_hash_get_digest_len(const hal_digest_algorithm_t alg, size_t *length)
+hal_error_t hal_rpc_hash_get_digest_length(const hal_digest_algorithm_t alg, size_t *length)
 {
 	uint8_t outbuf[nargs(3)], *optr = outbuf, *olimit = outbuf + sizeof(outbuf);
 	uint8_t inbuf[nargs(4)];

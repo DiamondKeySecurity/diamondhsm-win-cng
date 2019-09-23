@@ -39,6 +39,8 @@
 */
 #include "stdafx.h"
 
+#include "internal.h"
+
 /*
 * Magic PKCS #11 macros that must be defined before including
 * pkcs11.h.  For now these are only the Unix versions, add others
@@ -140,6 +142,24 @@ typedef struct p11_session {
         sign_digest_handle,                 /* Hash state for C_Sign*() */
         verify_digest_handle;               /* Hash state for C_Verify*() */
 } p11_session_t;
+
+class mem_deleter
+{
+public:
+    mem_deleter(uint8_t *ptr)
+        :ptr(ptr)
+    {
+    }
+
+    ~mem_deleter()
+    {
+        delete[] ptr;
+    }
+
+
+private:
+    uint8_t *ptr;
+};
 
 /*
 * PKCS #11 objects.  These are pretty simple, as they're really just
@@ -542,7 +562,7 @@ static inline CK_ULONG mask_dpb(const CK_ULONG mask, const CK_ULONG value)
 /*
 * Translate between libhal EC curve names and OIDs.
 */
-#warning Perhaps this should be  a utility routine in libhal instead of here
+// warning Perhaps this should be  a utility routine in libhal instead of here
 
 static int ec_curve_oid_to_name(const uint8_t * const oid, const size_t oid_len, hal_curve_name_t *curve)
 {
@@ -1594,7 +1614,9 @@ static int p11_session_consistent_login(void)
 
 static int psnprintf(void *buffer_, size_t size, const char *format, ...)
 {
-    char buffer[size + 1];
+    size_t sizeof_buffer = size + 1;
+    char *buffer = new char[size + 1];
+    if (buffer == NULL) return 0;
     size_t n;
     va_list ap;
 
@@ -1607,6 +1629,7 @@ static int psnprintf(void *buffer_, size_t size, const char *format, ...)
 
     memcpy(buffer_, buffer, size);
 
+    delete[] buffer;
     return n;
 }
 
@@ -1647,7 +1670,7 @@ static CK_RV p11_template_check_1(const CK_ATTRIBUTE_TYPE type,
     if (atd->value != NULL && (atd->flags & P11_DESCRIPTOR_DEFAULT_VALUE) == 0 && memcmp(val, atd->value, atd->length) != 0)
         lose(CKR_TEMPLATE_INCONSISTENT);
 
-    #warning Add _LATCH checks here ?
+    // warning Add _LATCH checks here ?
 
         rv = CKR_OK;
 
@@ -1673,10 +1696,10 @@ static CK_RV p11_template_check_2(const p11_session_t *session,
     unsigned long forbidden_flag)
 {
     const CK_BBOOL * const cka_private
-        = p11_attribute_find_value_in_template_or_descriptor(descriptor, CKA_PRIVATE,
+        = (const CK_BBOOL *)p11_attribute_find_value_in_template_or_descriptor(descriptor, CKA_PRIVATE,
             _template, template_length);
     const CK_BBOOL * const cka_token
-        = p11_attribute_find_value_in_template_or_descriptor(descriptor, CKA_TOKEN,
+        = (const CK_BBOOL *)p11_attribute_find_value_in_template_or_descriptor(descriptor, CKA_TOKEN,
             _template, template_length);
     CK_RV rv;
 
@@ -1769,9 +1792,9 @@ static CK_RV p11_check_keypair_attributes(const p11_session_t *session,
             goto fail;
 
         if (type == CKA_PRIVATE)
-            public_cka_private = val;
+            public_cka_private = (const CK_BBOOL *)val;
 
-        p11_attribute_apply_keyusage(public_flags, type, val);
+        p11_attribute_apply_keyusage(public_flags, type, (const CK_BBOOL *)val);
     }
 
     for (i = 0; i < ulPrivateKeyAttributeCount; i++) {
@@ -1784,12 +1807,12 @@ static CK_RV p11_check_keypair_attributes(const p11_session_t *session,
             goto fail;
 
         if (type == CKA_PRIVATE)
-            private_cka_private = val;
+            private_cka_private = (const CK_BBOOL *)val;
 
         if (type == CKA_EXTRACTABLE)
-            private_cka_extractable = val;
+            private_cka_extractable = (const CK_BBOOL *)val;
 
-        p11_attribute_apply_keyusage(private_flags, type, val);
+        p11_attribute_apply_keyusage(private_flags, type, (const CK_BBOOL *)val);
     }
 
     /*
@@ -1893,7 +1916,7 @@ static CK_RV generate_keypair_rsa_pkcs(p11_session_t *session,
             continue;
 
         case CKA_PUBLIC_EXPONENT:
-            public_exponent = val;
+            public_exponent = (uint8_t *)val;
             public_exponent_len = len;
             continue;
         }
@@ -1910,31 +1933,43 @@ static CK_RV generate_keypair_rsa_pkcs(p11_session_t *session,
             private_flags)))
             lose(CKR_FUNCTION_FAILED);
 
-        uint8_t der[hal_rpc_pkey_get_public_key_len(private_pkey)], keybuf[hal_rsa_key_t_size];
+        size_t sizeof_der = hal_rpc_pkey_get_public_key_len(private_pkey);
+
+        uint8_t *der = new uint8_t[sizeof_der];
+
+        // link destruction to scope
+        mem_deleter free_der(der);
+
         size_t der_len, modulus_len;
         hal_rsa_key_t *key = NULL;
 
-        if (!hal_check(hal_rpc_pkey_get_public_key(private_pkey, der, &der_len, sizeof(der))) ||
-            !hal_check(hal_rsa_public_key_from_der(&key, keybuf, sizeof(keybuf), der, der_len)) ||
+        if (!hal_check(hal_rpc_pkey_get_public_key(private_pkey, der, &der_len, sizeof_der)) ||
             !hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
                 p11_session_hal_session(session),
                 &public_pkey, &public_uuid, der, der_len, public_flags)) ||
             !hal_check(hal_rsa_key_get_modulus(key, NULL, &modulus_len, 0)))
             lose(CKR_FUNCTION_FAILED);
 
-        uint8_t modulus[modulus_len];
+        size_t sizeof_modulus = modulus_len;
+        uint8_t *modulus = new uint8_t[sizeof_modulus];
+        // link destruction to scope
+        mem_deleter free_modulus(modulus);
 
-        if (!hal_check(hal_rsa_key_get_modulus(key, modulus, NULL, sizeof(modulus))))
+        if (!hal_check(hal_rsa_key_get_modulus(key, modulus, NULL, sizeof_modulus)))
             lose(CKR_FUNCTION_FAILED);
 
-        const hal_pkey_attribute_t extra[] = {
-            { .type = CKA_LOCAL,
-            .value = &const_CK_TRUE,.length = sizeof(const_CK_TRUE) },
-        { .type = CKA_KEY_GEN_MECHANISM,
-        .value = &pMechanism->mechanism,.length = sizeof(pMechanism->mechanism) },
-        { .type = CKA_MODULUS,
-        .value = modulus,.length = modulus_len }
-        };
+        hal_pkey_attribute_t extra[3];
+        extra[0].type = CKA_LOCAL;
+        extra[0].value = &const_CK_TRUE;
+        extra[0].length = sizeof(const_CK_TRUE);
+
+        extra[1].type = CKA_KEY_GEN_MECHANISM;
+        extra[1].value = &pMechanism->mechanism;
+        extra[1].length = sizeof(pMechanism->mechanism);
+
+        extra[2].type = CKA_MODULUS;
+        extra[2].value = modulus;
+        extra[1].length = modulus_len;
 
         if (!p11_attributes_set(private_pkey, pPrivateKeyTemplate, ulPrivateKeyAttributeCount,
             private_descriptor, extra, sizeof(extra) / sizeof(*extra)) ||
@@ -1993,7 +2028,7 @@ static CK_RV generate_keypair_ec(p11_session_t *session,
         switch (type) {
 
         case CKA_EC_PARAMS:
-            params = val;
+            params = (CK_BYTE *)val;
             params_len = len;
             continue;
         }
@@ -2010,32 +2045,33 @@ static CK_RV generate_keypair_ec(p11_session_t *session,
             curve, private_flags)))
             lose(CKR_FUNCTION_FAILED);
 
-        uint8_t der[hal_rpc_pkey_get_public_key_len(private_pkey)], keybuf[hal_ecdsa_key_t_size];
+        size_t sizeof_der = hal_rpc_pkey_get_public_key_len(private_pkey);
+        uint8_t *der = new uint8_t[sizeof_der];
+
+        // link destruction to scope
+        mem_deleter free_der(der);
+
         hal_ecdsa_key_t *key = NULL;
         size_t der_len;
 
-        if (!hal_check(hal_rpc_pkey_get_public_key(private_pkey, der, &der_len, sizeof(der))) ||
-            !hal_check(hal_ecdsa_public_key_from_der(&key, keybuf, sizeof(keybuf), der, der_len)) ||
+        if (!hal_check(hal_rpc_pkey_get_public_key(private_pkey, der, &der_len, sizeof_der)) ||
             !hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
                 p11_session_hal_session(session),
                 &public_pkey, &public_uuid, der, der_len, public_flags)))
             lose(CKR_FUNCTION_FAILED);
 
-        uint8_t point[hal_ecdsa_key_to_ecpoint_len(key)];
+        hal_pkey_attribute_t extra[3];
+        extra[0].type = CKA_LOCAL;
+        extra[0].value = &const_CK_TRUE;
+        extra[0].length = sizeof(const_CK_TRUE);
 
-        if (!hal_check(hal_ecdsa_key_to_ecpoint(key, point, NULL, sizeof(point))))
-            lose(CKR_FUNCTION_FAILED);
+        extra[1].type = CKA_KEY_GEN_MECHANISM;
+        extra[1].value = &pMechanism->mechanism;
+        extra[1].length = sizeof(pMechanism->mechanism);
 
-        const hal_pkey_attribute_t extra[] = {
-            { .type = CKA_LOCAL,
-            .value = &const_CK_TRUE,.length = sizeof(const_CK_TRUE) },
-        { .type = CKA_KEY_GEN_MECHANISM,
-        .value = &pMechanism->mechanism,.length = sizeof(pMechanism->mechanism) },
-        { .type = CKA_EC_PARAMS,
-        .value = params,.length = params_len },
-        { .type = CKA_EC_POINT,
-        .value = point,.length = sizeof(point) }
-        };
+        extra[2].type = CKA_EC_PARAMS;
+        extra[2].value = params;
+        extra[2].length = params_len;
 
         if (!p11_attributes_set(private_pkey, pPrivateKeyTemplate, ulPrivateKeyAttributeCount,
             private_descriptor, extra, sizeof(extra) / sizeof(*extra) - 1) ||
@@ -2108,11 +2144,11 @@ static CK_RV generate_keypair(p11_session_t *session,
 
     for (int i = 0; i < ulPublicKeyAttributeCount; i++)
         if (pPublicKeyTemplate[i].type == CKA_TOKEN)
-            public_handle_flavor = p11_object_flavor_from_cka_token(pPublicKeyTemplate[i].pValue);
+            public_handle_flavor = p11_object_flavor_from_cka_token((CK_BBOOL *)(pPublicKeyTemplate[i].pValue));
 
     for (int i = 0; i < ulPrivateKeyAttributeCount; i++)
         if (pPrivateKeyTemplate[i].type == CKA_TOKEN)
-            private_handle_flavor = p11_object_flavor_from_cka_token(pPrivateKeyTemplate[i].pValue);
+            private_handle_flavor = p11_object_flavor_from_cka_token((CK_BBOOL *)(pPrivateKeyTemplate[i].pValue));
 
     if (public_handle_flavor == handle_flavor_token_object)
         public_flags |= HAL_KEY_FLAG_TOKEN;
@@ -2259,7 +2295,7 @@ static int get_signature_len(const hal_pkey_handle_t pkey,
     case CKK_EC:
         attribute.type = CKA_EC_PARAMS;
         if (!hal_check(hal_rpc_pkey_get_attributes(pkey, &attribute, 1, oid, sizeof(oid))) ||
-            !ec_curve_oid_to_name(attribute.value, attribute.length, &curve))
+            !ec_curve_oid_to_name((uint8_t *)(attribute.value), attribute.length, &curve))
             return 0;
         switch (curve) {
         case HAL_CURVE_P256: *signature_len = 64;  return 1;
@@ -2335,7 +2371,7 @@ fail:
     return rv;
 }
 
-#warning May need to do something about truncating oversized hashes for ECDSA, see PKCS11 spec
+// warning May need to do something about truncating oversized hashes for ECDSA, see PKCS11 spec
 
 
 
@@ -2347,17 +2383,8 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
 {
     ENTER_PUBLIC_FUNCTION(C_Initialize);
 
-    CK_C_INITIALIZE_ARGS_PTR a = pInitArgs;
+    CK_C_INITIALIZE_ARGS_PTR a = (CK_C_INITIALIZE_ARGS_PTR)pInitArgs;
     CK_RV rv;
-
-    /*
-    * Use dks tools to get the address of the HSM we need to connect to
-    */
-    hsm_info_t *hsm_info = NULL;
-    if (HSMCONF_OK != LoadHSMInfo(&hsm_info, HSM_PORT_RPC))
-    {
-        lose(CKR_GENERAL_ERROR);
-    }
 
     /*
     * We'd like to detect the error of calling this method more than
@@ -2453,14 +2480,9 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
     * Initialize libhal RPC channel.
     */
 
-    if (!hal_check(hal_rpc_client_transport_init_ip(hsm_info->ip_addr, hsm_info->servername)))
+    if (!hal_check(hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm")) != HAL_OK)
     {
-        printf("\n'%s' at '%s'", hsm_info->ip_addr, hsm_info->servername);
         lose(CKR_GENERAL_ERROR);
-    }
-    else
-    {
-        FreeHSMInfo(&hsm_info);
     }
 
 #if USE_POSIX
@@ -2470,7 +2492,6 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
     return CKR_OK;
 
 fail:
-    FreeHSMInfo(&hsm_info);
     return rv;
 }
 
@@ -2496,7 +2517,7 @@ CK_RV C_Finalize(CK_VOID_PTR pReserved)
     * there's not much to be done if any of the rest of this fails.
     */
 
-    hal_rpc_client_close();
+    hal_rpc_client_transport_close();
 
     rv = mutex_unlock(p11_global_mutex);
     (void)mutex_destroy(p11_global_mutex);
@@ -2841,9 +2862,10 @@ CK_RV C_Logout(CK_SESSION_HANDLE hSession)
     {
         assert(p11_session_consistent_login());
 
-        const hal_pkey_attribute_t attrs[] = {
-            { .type = CKA_PRIVATE,.value = &const_CK_TRUE,.length = sizeof(const_CK_TRUE) }
-        };
+        hal_pkey_attribute_t attrs[1];
+        attrs[0].type = CKA_PRIVATE;
+        attrs[0].value = &const_CK_TRUE;
+        attrs[0].length = sizeof(const_CK_TRUE);
 
         hal_uuid_t uuids[64];
         unsigned n, state;
@@ -3147,17 +3169,20 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
     }
 
     {
-        hal_pkey_attribute_t attributes[ulCount];
+        hal_pkey_attribute_t *attributes = new hal_pkey_attribute_t[ulCount];
 
-        memset(attributes, 0, sizeof(attributes));
+        memset(attributes, 0, sizeof(hal_pkey_attribute_t) * ulCount);
 
         for (int i = 0; i < ulCount; i++)
             attributes[i].type = pTemplate[i].type;
 
         if (!hal_check(hal_rpc_pkey_get_attributes(pkey,
-            attributes, sizeof(attributes) / sizeof(*attributes),
+            attributes, ulCount,
             NULL, 0)))
+        {
+            delete[] attributes;
             lose(CKR_OBJECT_HANDLE_INVALID);
+        }
 
         rv = CKR_OK;
 
@@ -3189,7 +3214,8 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
         if (attributes_buffer_len == 0)
             goto fail;
 
-        uint8_t attributes_buffer[attributes_buffer_len];
+        size_t sizeof_attributes_buffer = attributes_buffer_len * sizeof(uint8_t);
+        uint8_t *attributes_buffer = new uint8_t[attributes_buffer_len];
         unsigned n = 0;
 
         for (int i = 0; i < ulCount; i++)
@@ -3197,14 +3223,22 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession,
                 attributes[n++].type = pTemplate[i].type;
 
         if (!hal_check(hal_rpc_pkey_get_attributes(pkey, attributes, n,
-            attributes_buffer, sizeof(attributes_buffer))))
+            attributes_buffer, sizeof_attributes_buffer)))
+        {
+            delete[] attributes;
+            delete[] attributes_buffer;
             lose(CKR_OBJECT_HANDLE_INVALID);
+        }
 
         for (int i = 0; i < n; i++) {
             int j = p11_attribute_find_in_template(attributes[i].type, pTemplate, ulCount);
 
             if (j < 0 || pTemplate[j].ulValueLen == -1 || pTemplate[j].ulValueLen < attributes[i].length)
+            {
+                delete[] attributes;
+                delete[] attributes_buffer;
                 lose(CKR_FUNCTION_FAILED);
+            }
 
             memcpy(pTemplate[j].pValue, attributes[i].value, attributes[i].length);
             pTemplate[j].ulValueLen = attributes[i].length;
@@ -3254,7 +3288,7 @@ CK_RV C_FindObjectsInit(CK_SESSION_HANDLE hSession,
         len += pTemplate[i].ulValueLen;
     }
 
-    if ((mem = malloc(len)) == NULL)
+    if ((mem = (CK_BBOOL *)malloc(len)) == NULL)
         lose(CKR_HOST_MEMORY);
 
     session->find_query = (hal_pkey_attribute_t *)mem;
@@ -3269,8 +3303,8 @@ CK_RV C_FindObjectsInit(CK_SESSION_HANDLE hSession,
         mem += len;
     }
 
-    cka_private = p11_attribute_find_value_in_template(CKA_PRIVATE, pTemplate, ulCount);
-    cka_token = p11_attribute_find_value_in_template(CKA_TOKEN, pTemplate, ulCount);
+    cka_private = (CK_BBOOL *)p11_attribute_find_value_in_template(CKA_PRIVATE, pTemplate, ulCount);
+    cka_token = (CK_BBOOL *)p11_attribute_find_value_in_template(CKA_TOKEN, pTemplate, ulCount);
 
     session->find_query_n = ulCount;
     session->find_query_token = cka_token == NULL || *cka_token;
@@ -3308,6 +3342,8 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
 {
     ENTER_PUBLIC_FUNCTION(C_FindObjects);
 
+    hal_uuid_t *uuids = NULL;
+
     p11_session_t *session;
     CK_RV rv = CKR_OK;
 
@@ -3326,7 +3362,8 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
 
     while (*pulObjectCount < ulMaxObjectCount &&
         (session->find_query_token || session->find_query_session)) {
-        hal_uuid_t uuids[ulMaxObjectCount - *pulObjectCount];
+        delete[] uuids;
+        uuids = new hal_uuid_t[ulMaxObjectCount - *pulObjectCount];
         handle_flavor_t flavor;
         hal_key_flags_t flags;
         unsigned n;
@@ -3375,6 +3412,7 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
     }
 
 fail:
+    delete[] uuids;
     mutex_unlock_return_with_rv(rv, p11_global_mutex);
 }
 
@@ -3581,12 +3619,12 @@ CK_RV C_SignInit(CK_SESSION_HANDLE hSession,
 
     uint8_t attributes_buffer[sizeof(CK_OBJECT_CLASS) + sizeof(CK_KEY_TYPE) + 3 * sizeof(CK_BBOOL)];
     hal_pkey_handle_t pkey = { HAL_HANDLE_NONE };
-    hal_pkey_attribute_t attributes[] = {
-        [0].type = CKA_KEY_TYPE,
-        [1].type = CKA_SIGN,
-        [2].type = CKA_PRIVATE,
-        [3].type = CKA_TOKEN
-    };
+    hal_pkey_attribute_t attributes[4];
+    attributes[0].type = CKA_KEY_TYPE;
+    attributes[1].type = CKA_SIGN;
+    attributes[2].type = CKA_PRIVATE;
+    attributes[3].type = CKA_TOKEN;
+
     CK_KEY_TYPE cka_key_type;
     CK_BBOOL cka_sign;
     CK_BBOOL cka_private;

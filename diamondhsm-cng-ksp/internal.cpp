@@ -30,6 +30,7 @@
 #include "stdafx.h"
 
 #include "internal.h"
+#include "pkcs11.h"
 
 LPCSTR DKEYKspGetUserPin()
 {
@@ -77,9 +78,13 @@ SECURITY_STATUS ConnectToHSM(hal_client_handle_t client)
     SECURITY_STATUS status = ERROR_SUCCESS;
     BOOL transport_open = FALSE;
 
-    // connect to the HSM
-    hal_error_t err;
-    if ((err = hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm")) != HAL_OK)
+    // USE PKCS #11 function to connect to HSM
+    CK_C_INITIALIZE_ARGS pkcs11_init_args;
+    ZeroMemory(&pkcs11_init_args, sizeof(CK_C_INITIALIZE_ARGS));
+    pkcs11_init_args.flags = CKF_OS_LOCKING_OK;
+
+    CK_RV result = C_Initialize(&pkcs11_init_args);
+    if (result != CKR_OK)
     {
         status = NTE_DEVICE_NOT_FOUND;
         goto cleanup;
@@ -87,13 +92,6 @@ SECURITY_STATUS ConnectToHSM(hal_client_handle_t client)
     else
     {
         transport_open = TRUE;
-    }
-
-    // login
-    if ((err = hal_rpc_login(client, HAL_USER_NORMAL, DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()))) != HAL_OK)
-    {
-        status = NTE_VALIDATION_FAILED;
-        goto cleanup;
     }
 
 cleanup:
@@ -107,9 +105,6 @@ cleanup:
 
 void CloseConnectionToHSM()
 {
-    // log out and disconnect
-    hal_client_handle_t client = { 0 }; // always 0
-    hal_rpc_logout(client);
-
-    hal_rpc_client_transport_close();
+    // Disconnect PKCS #11
+    C_Finalize(NULL);
 }
