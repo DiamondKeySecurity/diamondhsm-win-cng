@@ -33,17 +33,6 @@
 #include "diamondhsm-ksp.h"
 #include "../cryptech-libhal/hal.h"
 
-LPCSTR DKEYKspGetUserPin();
-LPCSTR DKEYKspGetHostAddr();
-
-SECURITY_STATUS NormalizeNteStatus(__in NTSTATUS NtStatus);
-
-DKEY_KSP_PROVIDER *DKEYKspValidateProvHandle(
-	__in    NCRYPT_PROV_HANDLE hProvider);
-
-DKEY_KSP_KEY *DKEYKspValidateKeyHandle(
-	__in    NCRYPT_KEY_HANDLE hKey);
-
 struct KeyMatchData
 {
     // list of all keys found on the last request to the HSM
@@ -61,3 +50,17 @@ struct KeyMatchData
     // state variable used by key_match
     uint32_t state;
 };
+
+LPCSTR DKEYKspGetUserPin();
+LPCSTR DKEYKspGetHostAddr();
+
+SECURITY_STATUS NormalizeNteStatus(__in NTSTATUS NtStatus);
+
+DKEY_KSP_PROVIDER *DKEYKspValidateProvHandle(
+	__in    NCRYPT_PROV_HANDLE hProvider);
+
+DKEY_KSP_KEY *DKEYKspValidateKeyHandle(
+	__in    NCRYPT_KEY_HANDLE hKey);
+
+// buffer must be at least 40 characters
+char *uuid_to_string(hal_uuid_t uuid, char *buffer, size_t buffer_count);

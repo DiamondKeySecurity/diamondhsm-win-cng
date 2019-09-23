@@ -36,5 +36,31 @@ LPCSTR DKEYKspGetUserPin()
 
 LPCSTR DKEYKspGetHostAddr()
 {
-	return "10.0.0.37";
+	return "10.1.10.9";
+}
+
+// buffer must be at least 40 characters
+char *uuid_to_string(hal_uuid_t uuid, char *buffer, size_t buffer_count)
+{
+    // sorry for implementing this this way, but it was so easy.
+    sprintf_s(buffer, buffer_count, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        (unsigned int)uuid.uuid[0],
+        (unsigned int)uuid.uuid[1],
+        (unsigned int)uuid.uuid[2],
+        (unsigned int)uuid.uuid[3],
+        (unsigned int)uuid.uuid[4],
+        (unsigned int)uuid.uuid[5],
+        (unsigned int)uuid.uuid[6],
+        (unsigned int)uuid.uuid[7],
+        (unsigned int)uuid.uuid[8],
+        (unsigned int)uuid.uuid[9],
+        (unsigned int)uuid.uuid[10],
+        (unsigned int)uuid.uuid[11],
+        (unsigned int)uuid.uuid[12],
+        (unsigned int)uuid.uuid[13],
+        (unsigned int)uuid.uuid[14],
+        (unsigned int)uuid.uuid[15]
+    );
+
+    return buffer;
 }

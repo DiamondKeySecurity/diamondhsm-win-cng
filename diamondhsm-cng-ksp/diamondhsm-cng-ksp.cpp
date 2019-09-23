@@ -337,16 +337,35 @@ SECURITY_STATUS WINAPI OpenKey(
         {
             CopyMemory(pCurrent, NCRYPT_RSA_ALGORITHM, sizeof(NCRYPT_RSA_ALGORITHM));
             pKey->pszAlgID = (LPWSTR)pCurrent;
+
+            // no mechanism to get RSA key length at this time
+            pKey->dwLength = 0;
         }
         else if (key_type == HAL_KEY_TYPE_EC_PRIVATE)
         {
             hal_rpc_pkey_get_key_curve(pProvider->conn_context, handle, &key_curve);
-            if (key_curve == HAL_CURVE_P256) CopyMemory(pCurrent, BCRYPT_ECDSA_P256_ALGORITHM, sizeof(BCRYPT_ECDSA_P256_ALGORITHM));
-            else if (key_curve == HAL_CURVE_P384) CopyMemory(pCurrent, BCRYPT_ECDSA_P384_ALGORITHM, sizeof(BCRYPT_ECDSA_P384_ALGORITHM));
-            else if (key_curve == HAL_CURVE_P521) CopyMemory(pCurrent, BCRYPT_ECDSA_P521_ALGORITHM, sizeof(BCRYPT_ECDSA_P521_ALGORITHM));
+            if (key_curve == HAL_CURVE_P256)
+            {
+                CopyMemory(pCurrent, BCRYPT_ECDSA_P256_ALGORITHM, sizeof(BCRYPT_ECDSA_P256_ALGORITHM));
+                pKey->dwLength = 256;
+            }
+            else if (key_curve == HAL_CURVE_P384)
+            {
+                CopyMemory(pCurrent, BCRYPT_ECDSA_P384_ALGORITHM, sizeof(BCRYPT_ECDSA_P384_ALGORITHM));
+                pKey->dwLength = 384;
+            }
+            else if (key_curve == HAL_CURVE_P521)
+            {
+                CopyMemory(pCurrent, BCRYPT_ECDSA_P521_ALGORITHM, sizeof(BCRYPT_ECDSA_P521_ALGORITHM));
+                pKey->dwLength = 521;
+            }
             else CopyMemory(pCurrent, TEXT("ECDSA"), sizeof(TEXT("ECDSA")));
 
             pKey->pszAlgID = (LPWSTR)pCurrent;
+        }
+        else
+        {
+            CopyMemory(&(pKey->public_uuid), &uuid_list[i], sizeof(hal_uuid_t));
         }
     }
 
@@ -497,7 +516,201 @@ SECURITY_STATUS WINAPI GetKeyProperty(
 	_Out_   DWORD * pcbResult,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    DKEY_KSP_KEY *pKey = NULL;
+
+    // maximum output temp buffer
+    BYTE bOutBuffer[1024];
+    DWORD cbResult = 0;
+    char uuid_buffer[40];
+
+    //
+    // Validate input parameters.
+    //
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if ((pszProperty == NULL) ||
+        (wcslen(pszProperty) > NCRYPT_MAX_PROPERTY_NAME) ||
+        (pcbResult == NULL))
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    //NCRYPT_SILENT_FLAG is ignored in KSP.
+    dwFlags &= ~NCRYPT_SILENT_FLAG;
+
+    //If this is to get the security descriptor, the flags
+    //must be one of the OWNER_SECURITY_INFORMATION |GROUP_SECURITY_INFORMATION |
+    //DACL_SECURITY_INFORMATION|LABEL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION.
+    if (wcscmp(pszProperty, NCRYPT_SECURITY_DESCR_PROPERTY) == 0)
+    {
+
+        if ((dwFlags == 0) || ((dwFlags & ~(OWNER_SECURITY_INFORMATION |
+            GROUP_SECURITY_INFORMATION |
+            DACL_SECURITY_INFORMATION |
+            LABEL_SECURITY_INFORMATION |
+            SACL_SECURITY_INFORMATION)) != 0))
+        {
+            Status = NTE_BAD_FLAGS;
+            goto cleanup;
+        }
+    }
+    else
+    {
+        //Otherwise,Only NCRYPT_PERSIST_ONLY_FLAG is a valid flag.
+        if (dwFlags & ~NCRYPT_PERSIST_ONLY_FLAG)
+        {
+            Status = NTE_BAD_FLAGS;
+            goto cleanup;
+        }
+    }
+
+    // Get the property and add it to temporary buffer with the size
+    // all properties are stored in the key structure
+    if (wcscmp(pszProperty, NCRYPT_NAME_PROPERTY) == 0)
+    {
+        cbResult = (wcslen(pKey->pszKeyName) + 1) * sizeof(WCHAR);
+        if (cbResult < sizeof(bOutBuffer))
+            CopyMemory(&bOutBuffer[0], pKey->pszKeyName, cbResult);
+        else
+        {
+            // error
+            Status = NTE_BAD_LEN;
+            goto cleanup;
+        }
+    }
+    else if (wcscmp(pszProperty, NCRYPT_UNIQUE_NAME_PROPERTY) == 0)
+    {
+        LPWSTR uuid_wchar = (LPWSTR)&bOutBuffer[0];
+        size_t uuid_wchar_max = sizeof(bOutBuffer) / sizeof(WCHAR);
+        size_t num_converted;
+        uuid_to_string(pKey->public_uuid, uuid_buffer, sizeof(uuid_buffer));
+
+        mbstowcs_s(&num_converted, uuid_wchar, uuid_wchar_max, uuid_buffer, uuid_wchar_max);
+        cbResult = (wcslen(uuid_wchar)+1) * sizeof(WCHAR);
+    }
+    else if (wcscmp(pszProperty, NCRYPT_ALGORITHM_PROPERTY) == 0)
+    {
+        cbResult = (wcslen(pKey->pszAlgID) + 1) * sizeof(WCHAR);
+        CopyMemory(&bOutBuffer[0], pKey->pszAlgID, cbResult);
+    }
+    else if (wcscmp(pszProperty, NCRYPT_ALGORITHM_GROUP_PROPERTY) == 0)
+    {
+        if (wcsncmp(pKey->pszAlgID, NCRYPT_ECDSA_ALGORITHM_GROUP, wcslen(NCRYPT_ECDSA_ALGORITHM_GROUP)) == 0)
+        {
+            cbResult = sizeof(NCRYPT_ECDSA_ALGORITHM_GROUP);
+            CopyMemory(&bOutBuffer[0], NCRYPT_ECDSA_ALGORITHM_GROUP, cbResult);
+        }
+        else if (wcsncmp(pKey->pszAlgID, NCRYPT_RSA_ALGORITHM_GROUP, wcslen(NCRYPT_RSA_ALGORITHM_GROUP)) == 0)
+        {
+            cbResult = sizeof(NCRYPT_RSA_ALGORITHM_GROUP);
+            CopyMemory(&bOutBuffer[0], NCRYPT_RSA_ALGORITHM_GROUP, cbResult);
+        }
+        else
+        {
+            // error
+            Status = NTE_BAD_TYPE;
+            goto cleanup;
+        }
+    }
+    else if (wcscmp(pszProperty, NCRYPT_LENGTH_PROPERTY) == 0)
+    {
+        if (pKey->dwLength > 0)
+        {
+            cbResult = sizeof(DWORD);
+            CopyMemory(&bOutBuffer[0], &(pKey->dwLength), cbResult);
+        }
+        else
+        {
+            // error
+            Status = NTE_NOT_SUPPORTED;
+            goto cleanup;
+        }
+    }
+    else if (wcscmp(pszProperty, NCRYPT_EXPORT_POLICY_PROPERTY) == 0)
+    {
+        // exporting not allowed
+        DWORD export_policy = 0;
+        cbResult = sizeof(DWORD);
+        CopyMemory(&bOutBuffer[0], &export_policy, cbResult);
+    }
+    else if (wcscmp(pszProperty, NCRYPT_IMPL_TYPE_PROPERTY) == 0)
+    {
+        // this is a hardware HSM
+        DWORD impl_type_policy = NCRYPT_IMPL_HARDWARE_FLAG;
+        cbResult = sizeof(DWORD);
+        CopyMemory(&bOutBuffer[0], &impl_type_policy, cbResult);
+    }
+    else if (wcscmp(pszProperty, NCRYPT_KEY_USAGE_PROPERTY) == 0)
+    {
+        // only signing is allowed
+        DWORD key_usage_policy = NCRYPT_ALLOW_SIGNING_FLAG;
+        cbResult = sizeof(DWORD);
+        CopyMemory(&bOutBuffer[0], &key_usage_policy, cbResult);
+    }
+    else if (wcscmp(pszProperty, NCRYPT_KEY_TYPE_PROPERTY) == 0)
+    {
+        // keys are availble to all users
+        DWORD key_type_policy = NCRYPT_MACHINE_KEY_FLAG;
+        cbResult = sizeof(DWORD);
+        CopyMemory(&bOutBuffer[0], &key_type_policy, cbResult);
+    }
+    else if (wcscmp(pszProperty, NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY) == 0)
+    {
+        // HSM doesn't support security descriptor on keys
+        DWORD sec_support_policy = 0;
+        cbResult = sizeof(DWORD);
+        CopyMemory(&bOutBuffer[0], &sec_support_policy, cbResult);
+    }
+    else
+    {
+        Status = NTE_NOT_SUPPORTED;
+        goto cleanup;
+    }
+
+
+    //
+    // Validate the size of the output buffer.
+    //
+    *pcbResult = cbResult;
+
+    if (pbOutput == NULL)
+    {
+        Status = ERROR_SUCCESS;
+        goto cleanup;
+    }
+
+    if (cbOutput < *pcbResult)
+    {
+        Status = NTE_BUFFER_TOO_SMALL;
+        goto cleanup;
+    }
+
+    //
+    // Retrieve the requested property data.
+    //
+    CopyMemory(pbOutput, &bOutBuffer[0], cbResult);
+
+    Status = ERROR_SUCCESS;
+
+cleanup:
+    return Status;
 }
 
 // Sets a property value for the provider. It is implemented by your key storage provider (KSP)
@@ -538,7 +751,7 @@ SECURITY_STATUS WINAPI SetProviderProperty(
 	_In_    DWORD   cbInput,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    return NTE_NOT_SUPPORTED;
 }
 
 // Sets a property value for a CNG key storage key. It is implemented by your key storage provider (KSP) and called by
@@ -582,7 +795,58 @@ SECURITY_STATUS WINAPI SetKeyProperty(
 	_In_    DWORD   cbInput,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    DKEY_KSP_KEY *pKey = NULL;
+
+    //
+    // Validate input parameters.
+    //
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if ((pszProperty == NULL) ||
+        (wcslen(pszProperty) > NCRYPT_MAX_PROPERTY_NAME))
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    // Get the property and add it to temporary buffer with the size
+    // all properties are stored in the key structure
+    if ((wcscmp(pszProperty, NCRYPT_NAME_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_UNIQUE_NAME_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_ALGORITHM_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_ALGORITHM_GROUP_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_LENGTH_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_EXPORT_POLICY_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_IMPL_TYPE_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_KEY_USAGE_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_KEY_TYPE_PROPERTY) == 0) ||
+        (wcscmp(pszProperty, NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY) == 0))
+    {
+        Status = NTE_FIXEDPARAMETER;
+    }
+    else
+    {
+        Status = NTE_NOT_SUPPORTED;
+    }
+
+cleanup:
+    return Status;
 }
 
 // Completes a CNG key storage key. It is implemented by your key storage provider (KSP) and called by the NCryptFinalizeKey function.

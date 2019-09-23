@@ -109,6 +109,7 @@ typedef __struct_bcount(sizeof(DKEY_KSP_KEY)) struct _DKEY_KSP_KEY
 	LPWSTR              pszKeyName;         //name of the ke
     LPWSTR              pszAlgID;           //Algorithm name
     BOOL                bFinalized;         //TRUE if attributes can't be changed
+    DWORD               dwLength;
 
 	// handle to cryptography providers needed to perform operations with
 	// the key.
@@ -117,5 +118,7 @@ typedef __struct_bcount(sizeof(DKEY_KSP_KEY)) struct _DKEY_KSP_KEY
 	// handle to key objects.
     hal_pkey_handle_t   hPublicKey;
     hal_pkey_handle_t   hPrivateKey;
+
+    hal_uuid_t          public_uuid;
 } DKEY_KSP_KEY;
 
