@@ -64,3 +64,6 @@ DKEY_KSP_KEY *DKEYKspValidateKeyHandle(
 
 // buffer must be at least 40 characters
 char *uuid_to_string(hal_uuid_t uuid, char *buffer, size_t buffer_count);
+
+SECURITY_STATUS ConnectToHSM(hal_client_handle_t client);
+void CloseConnectionToHSM();

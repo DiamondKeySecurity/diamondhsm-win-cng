@@ -57,7 +57,7 @@ static inline const char *ecdsa_curve_to_string(const hal_curve_name_t curve)
 	}
 }
 
-static int test_attributes(const void *conn, const hal_pkey_handle_t pkey,
+static int test_attributes(const hal_pkey_handle_t pkey,
 	const hal_uuid_t * const name,
 	const hal_key_flags_t flags)
 {
@@ -92,11 +92,11 @@ static int test_attributes(const void *conn, const hal_pkey_handle_t pkey,
 		attr_del.length = HAL_PKEY_ATTRIBUTE_NIL;
 		attr_del.value = NULL;
 
-		if ((err = hal_rpc_pkey_set_attributes(conn, pkey, &attr_set, 1)) != HAL_OK)
+		if ((err = hal_rpc_pkey_set_attributes(pkey, &attr_set, 1)) != HAL_OK)
 			lose("Could not set attribute %lu: %s\n",
 			(unsigned long)*size, hal_error_string(err));
 
-		if ((err = hal_rpc_pkey_get_attributes(conn, pkey, &attr_get, 1, buf_2, sizeof_buf_2)) != HAL_OK)
+		if ((err = hal_rpc_pkey_get_attributes(pkey, &attr_get, 1, buf_2, sizeof_buf_2)) != HAL_OK)
 			lose("Could not get attribute %lu: %s\n",
 			(unsigned long)*size, hal_error_string(err));
 
@@ -104,11 +104,11 @@ static int test_attributes(const void *conn, const hal_pkey_handle_t pkey,
 			lose("Unexpected size returned for attribute %lu: %lu\n",
 			(unsigned long)*size, (unsigned long)attr_get.length);
 
-		if ((err = hal_rpc_pkey_set_attributes(conn, pkey, &attr_del, 1)) != HAL_OK)
+		if ((err = hal_rpc_pkey_set_attributes(pkey, &attr_del, 1)) != HAL_OK)
 			lose("Could not delete attribute %lu: %s\n",
 			(unsigned long)*size, hal_error_string(err));
 
-		if ((err = hal_rpc_pkey_set_attributes(conn, pkey, &attr_set, 1)) != HAL_OK)
+		if ((err = hal_rpc_pkey_set_attributes(pkey, &attr_set, 1)) != HAL_OK)
 			lose("Could not (re)set attribute %lu: %s\n",
 			(unsigned long)*size, hal_error_string(err));
 	}
@@ -120,7 +120,7 @@ static int test_attributes(const void *conn, const hal_pkey_handle_t pkey,
 		unsigned result_len, state;
 
 		state = 0;
-		if ((err = hal_rpc_pkey_match(conn, client, session, HAL_KEY_TYPE_NONE, HAL_CURVE_NONE, 0, 0, NULL, 0,
+		if ((err = hal_rpc_pkey_match(client, session, HAL_KEY_TYPE_NONE, HAL_CURVE_NONE, 0, 0, NULL, 0,
 			&state, result, &result_len, sizeof(result) / sizeof(*result),
 			&previous_uuid)) != HAL_OK)
 			lose("Unrestricted match() failed: %s\n", hal_error_string(err));
@@ -139,7 +139,7 @@ static int test_attributes(const void *conn, const hal_pkey_handle_t pkey,
 			snprintf((char *)buf, sizeof_buf, format, (unsigned long)*size);
 			hal_pkey_attribute_t attribute[1] = { { *size, sizeof_buf, buf } };
 
-			if ((err = hal_rpc_pkey_match(conn, client, session, HAL_KEY_TYPE_NONE, HAL_CURVE_NONE, 0, 0,
+			if ((err = hal_rpc_pkey_match(client, session, HAL_KEY_TYPE_NONE, HAL_CURVE_NONE, 0, 0,
 				attribute, sizeof(attribute) / sizeof(*attribute),
 				&state, result, &result_len, sizeof(result) / sizeof(*result),
 				&previous_uuid)) != HAL_OK)
@@ -368,7 +368,7 @@ fail:
 //	return 0;
 //}
 
-static int test_rsa_generate(const void *conn, const rsa_tc_t * const tc, hal_key_flags_t flags)
+static int test_rsa_generate(const rsa_tc_t * const tc, hal_key_flags_t flags)
 {
 	const hal_client_handle_t client = { HAL_HANDLE_NONE };
 	const hal_session_handle_t session = { HAL_HANDLE_NONE };
@@ -387,20 +387,20 @@ static int test_rsa_generate(const void *conn, const rsa_tc_t * const tc, hal_ke
 
 		hal_uuid_t private_name, public_name;
 
-		if ((err = hal_rpc_pkey_generate_rsa(conn, client, session, &private_key, &private_name,
+		if ((err = hal_rpc_pkey_generate_rsa(client, session, &private_key, &private_name,
 			tc->size, tc->e.val, tc->e.len, flags)) != HAL_OK)
 			lose("Could not generate RSA private key: %s\n", hal_error_string(err));
 
-		size_t sizeof_public_der = hal_rpc_pkey_get_public_key_len(conn, private_key);
+		size_t sizeof_public_der = hal_rpc_pkey_get_public_key_len(private_key);
 		uint8_t *public_der = new uint8_t[sizeof_public_der];
 		std::unique_ptr<uint8_t> free_public_der(public_der);
 
-		if ((err = hal_rpc_pkey_get_public_key(conn, private_key, public_der, &len, sizeof_public_der)) != HAL_OK)
+		if ((err = hal_rpc_pkey_get_public_key(private_key, public_der, &len, sizeof_public_der)) != HAL_OK)
 			lose("Could not DER encode RPC RSA public key from RPC RSA private key: %s\n", hal_error_string(err));
 
 		assert(len == sizeof_public_der);
 
-		if ((err = hal_rpc_pkey_load(conn, client, session, &public_key, &public_name,
+		if ((err = hal_rpc_pkey_load(client, session, &public_key, &public_name,
 			public_der, sizeof_public_der, flags)) != HAL_OK)
 			lose("Could not load public key into RPC: %s\n", hal_error_string(err));
 
@@ -416,21 +416,21 @@ static int test_rsa_generate(const void *conn, const rsa_tc_t * const tc, hal_ke
 		assert(digestinfo != NULL);
 		const size_t digestinfo_len = tc->m.val + tc->m.len - ++digestinfo;
 
-		if ((err = hal_rpc_pkey_sign(conn, private_key, hal_hash_handle_none,
+		if ((err = hal_rpc_pkey_sign(private_key, hal_hash_handle_none,
 			digestinfo, digestinfo_len, sig, &len, sizeof_sig)) != HAL_OK)
 			lose("Could not sign: %s\n", hal_error_string(err));
 
-		if ((err = hal_rpc_pkey_verify(conn, public_key, hal_hash_handle_none,
+		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
 			digestinfo, digestinfo_len, sig, len)) != HAL_OK)
 			lose("Could not verify: %s\n", hal_error_string(err));
 
-		if (!test_attributes(conn, private_key, &private_name, flags) || !test_attributes(conn, public_key, &public_name, flags))
+		if (!test_attributes(private_key, &private_name, flags) || !test_attributes(public_key, &public_name, flags))
 			goto fail;
 
-		if ((err = hal_rpc_pkey_delete(conn, private_key)) != HAL_OK)
+		if ((err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
 			lose("Could not delete private key: %s\n", hal_error_string(err));
 
-		if ((err = hal_rpc_pkey_delete(conn, public_key)) != HAL_OK)
+		if ((err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
 			lose("Could not delete public key: %s\n", hal_error_string(err));
 
 		printf("OK\n");
@@ -439,17 +439,17 @@ static int test_rsa_generate(const void *conn, const rsa_tc_t * const tc, hal_ke
 
 fail:
 	if (private_key.handle != HAL_HANDLE_NONE &&
-		(err = hal_rpc_pkey_delete(conn, private_key)) != HAL_OK)
+		(err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
 		printf("Warning: could not delete private key: %s\n", hal_error_string(err));
 
 	if (public_key.handle != HAL_HANDLE_NONE &&
-		(err = hal_rpc_pkey_delete(conn, public_key)) != HAL_OK)
+		(err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
 		printf("Warning: could not delete public key: %s\n", hal_error_string(err));
 
 	return 0;
 }
 
-static int test_ecdsa_generate(const void *conn, const ecdsa_tc_t * const tc, hal_key_flags_t flags)
+static int test_ecdsa_generate(const ecdsa_tc_t * const tc, hal_key_flags_t flags)
 {
 	const hal_client_handle_t client = { HAL_HANDLE_NONE };
 	const hal_session_handle_t session = { HAL_HANDLE_NONE };
@@ -468,19 +468,19 @@ static int test_ecdsa_generate(const void *conn, const ecdsa_tc_t * const tc, ha
 
 		hal_uuid_t private_name, public_name;
 
-		if ((err = hal_rpc_pkey_generate_ec(conn, client, session, &private_key, &private_name, tc->curve, flags)) != HAL_OK)
+		if ((err = hal_rpc_pkey_generate_ec(client, session, &private_key, &private_name, tc->curve, flags)) != HAL_OK)
 			lose("Could not generate EC key pair: %s\n", hal_error_string(err));
 
-		size_t sizeof_public_der = hal_rpc_pkey_get_public_key_len(conn, private_key);
+		size_t sizeof_public_der = hal_rpc_pkey_get_public_key_len(private_key);
 		uint8_t *public_der = new uint8_t[sizeof_public_der];
 		std::unique_ptr<uint8_t> free_public_der(public_der);
 
-		if ((err = hal_rpc_pkey_get_public_key(conn, private_key, public_der, &len, sizeof_public_der)) != HAL_OK)
+		if ((err = hal_rpc_pkey_get_public_key(private_key, public_der, &len, sizeof_public_der)) != HAL_OK)
 			lose("Could not DER encode public key from test vector: %s\n", hal_error_string(err));
 
 		assert(len == sizeof_public_der);
 
-		if ((err = hal_rpc_pkey_load(conn, client, session, &public_key, &public_name,
+		if ((err = hal_rpc_pkey_load(client, session, &public_key, &public_name,
 			public_der, sizeof_public_der, flags)) != HAL_OK)
 			lose("Could not load public key into RPC: %s\n", hal_error_string(err));
 
@@ -488,21 +488,21 @@ static int test_ecdsa_generate(const void *conn, const ecdsa_tc_t * const tc, ha
 		uint8_t *sig = new uint8_t[sizeof_sig];
 		std::unique_ptr<uint8_t> free_sig(sig);
 
-		if ((err = hal_rpc_pkey_sign(conn, private_key, hal_hash_handle_none,
+		if ((err = hal_rpc_pkey_sign(private_key, hal_hash_handle_none,
 			tc->H, tc->H_len, sig, &len, sizeof_sig)) != HAL_OK)
 			lose("Could not sign: %s\n", hal_error_string(err));
 
-		if ((err = hal_rpc_pkey_verify(conn, public_key, hal_hash_handle_none,
+		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
 			tc->H, tc->H_len, sig, len)) != HAL_OK)
 			lose("Could not verify own signature: %s\n", hal_error_string(err));
 
-		if (!test_attributes(conn, private_key, &private_name, flags) || !test_attributes(conn, public_key, &public_name, flags))
+		if (!test_attributes(private_key, &private_name, flags) || !test_attributes(public_key, &public_name, flags))
 			goto fail;
 
-		if ((err = hal_rpc_pkey_delete(conn, private_key)) != HAL_OK)
+		if ((err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
 			lose("Could not delete private key: %s\n", hal_error_string(err));
 
-		if ((err = hal_rpc_pkey_delete(conn, public_key)) != HAL_OK)
+		if ((err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
 			lose("Could not delete public key: %s\n", hal_error_string(err));
 
 		printf("OK\n");
@@ -511,11 +511,11 @@ static int test_ecdsa_generate(const void *conn, const ecdsa_tc_t * const tc, ha
 
 fail:
 	if (private_key.handle != HAL_HANDLE_NONE &&
-		(err = hal_rpc_pkey_delete(conn, private_key)) != HAL_OK)
+		(err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
 		printf("Warning: could not delete private key: %s\n", hal_error_string(err));
 
 	if (public_key.handle != HAL_HANDLE_NONE &&
-		(err = hal_rpc_pkey_delete(conn, public_key)) != HAL_OK)
+		(err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
 		printf("Warning: could not delete public key: %s\n", hal_error_string(err));
 
 	return 0;
@@ -529,22 +529,20 @@ int main()
 {
 	const hal_client_handle_t client = { HAL_HANDLE_NONE };
 	const char *pin = "1234";
-	const char *ipaddr = "10.0.0.37";
-
-    void *conn_context;
+	const char *ipaddr = "10.1.10.9";
 
 	hal_error_t err;
 	int ok = 1;
 
 	printf("Connecting to DIAMOND HSM\r\n\r\n");
-	if ((err = hal_rpc_client_transport_init_ip(ipaddr, "dks-hsm", &conn_context)) != HAL_OK)
+	if ((err = hal_rpc_client_transport_init_ip(ipaddr, "dks-hsm")) != HAL_OK)
 	{
 		printf("Error: Trouble initializing RPC client: %s\n", hal_error_string(err));
 		std::cin.ignore();
 		return 1;
 	}
 
-	if ((err = hal_rpc_login(conn_context, client, HAL_USER_NORMAL, pin, strlen(pin))) != HAL_OK)
+	if ((err = hal_rpc_login(client, HAL_USER_NORMAL, pin, strlen(pin))) != HAL_OK)
 		printf("Warning: Trouble logging into HSM: %s\n", hal_error_string(err));
 
 	//for (int i = 0; i < (sizeof(rsa_tc) / sizeof(*rsa_tc)); i++)
@@ -557,16 +555,16 @@ int main()
 
 	for (int i = 0; i < (sizeof(rsa_tc) / sizeof(*rsa_tc)); i++)
 		for (int j = 0; j < 2; j++)
-			ok &= test_rsa_generate(conn_context, &rsa_tc[i], j * HAL_KEY_FLAG_TOKEN);
+			ok &= test_rsa_generate(&rsa_tc[i], j * HAL_KEY_FLAG_TOKEN);
 
 	for (int i = 0; i < (sizeof(ecdsa_tc) / sizeof(*ecdsa_tc)); i++)
 		for (int j = 0; j < 2; j++)
-			ok &= test_ecdsa_generate(conn_context, &ecdsa_tc[i], j * HAL_KEY_FLAG_TOKEN);
+			ok &= test_ecdsa_generate(&ecdsa_tc[i], j * HAL_KEY_FLAG_TOKEN);
 
-	if ((err = hal_rpc_logout(conn_context, client)) != HAL_OK)
+	if ((err = hal_rpc_logout(client)) != HAL_OK)
 		printf("Warning: Trouble logging out of HSM: %s\n", hal_error_string(err));
 
-	if ((err = hal_rpc_client_transport_close(conn_context)) != HAL_OK)
+	if ((err = hal_rpc_client_transport_close()) != HAL_OK)
 		printf("Warning: Trouble shutting down RPC client: %s\n", hal_error_string(err));
 
 	std::cin.ignore();

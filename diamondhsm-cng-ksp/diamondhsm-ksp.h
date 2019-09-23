@@ -98,7 +98,6 @@ typedef __struct_bcount(sizeof(DKEY_KSP_PROVIDER)) struct _DKEY_KSP_PROVIDER
 	hal_user_t           hal_user;
     hal_client_handle_t  client;
     hal_session_handle_t session;
-    void                *conn_context;
 }DKEY_KSP_PROVIDER;
 
 //key handle

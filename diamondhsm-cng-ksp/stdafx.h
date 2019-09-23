@@ -59,4 +59,5 @@
 extern "C"
 {
 #include "../cryptech-libhal/hal.h"
+#include "../cryptech-libhal/hal_internal.h"
 }
