@@ -29,6 +29,8 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "stdafx.h"
 
+#include "internal.h"
+
 LPCSTR DKEYKspGetUserPin()
 {
 	return "1234";
@@ -68,4 +70,46 @@ char *uuid_to_string(hal_uuid_t uuid, char *buffer, size_t buffer_count)
     );
 
     return buffer;
+}
+
+SECURITY_STATUS ConnectToHSM(hal_client_handle_t client)
+{
+    SECURITY_STATUS status = ERROR_SUCCESS;
+    BOOL transport_open = FALSE;
+
+    // connect to the HSM
+    hal_error_t err;
+    if ((err = hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm")) != HAL_OK)
+    {
+        status = NTE_DEVICE_NOT_FOUND;
+        goto cleanup;
+    }
+    else
+    {
+        transport_open = TRUE;
+    }
+
+    // login
+    if ((err = hal_rpc_login(client, HAL_USER_NORMAL, DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()))) != HAL_OK)
+    {
+        status = NTE_VALIDATION_FAILED;
+        goto cleanup;
+    }
+
+cleanup:
+    if (status != ERROR_SUCCESS &&
+        transport_open == TRUE)
+    {
+        CloseConnectionToHSM();
+    }
+    return status;
+}
+
+void CloseConnectionToHSM()
+{
+    // log out and disconnect
+    hal_client_handle_t client = { 0 }; // always 0
+    hal_rpc_logout(client);
+
+    hal_rpc_client_transport_close();
 }

@@ -90,6 +90,9 @@ _Check_return_ NTSTATUS WINAPI GetKeyStorageInterface(
 	return ERROR_SUCCESS;
 }
 
+static BOOL g_bConnectionOpen = FALSE;
+static DWORD g_dwNumOpenProviders = 0;
+
 // Initializes the provider.It is implemented by your key storage provider(KSP) and called by the NCryptOpenStorageProvider function.
 // Parameters
 // phProvider[out] - A pointer to a NCRYPT_PROV_HANDLE variable that receives the provider handle.
@@ -114,7 +117,6 @@ SECURITY_STATUS WINAPI OpenProvider(
 	DKEY_KSP_PROVIDER *pProvider = NULL;
 	DWORD cbLength = 0;
 	size_t cbProviderName = 0;
-    void *conn_context = NULL;
 	UNREFERENCED_PARAMETER(dwFlags);
 
 	// Validate input parameters.
@@ -153,38 +155,43 @@ SECURITY_STATUS WINAPI OpenProvider(
 	pProvider->dwFlags = 0;
 	pProvider->pszContext = NULL;
 	pProvider->hal_user = HAL_USER_NORMAL;
-    pProvider->client = hal_client_handle_t { 0 };
+    pProvider->client = hal_client_handle_t { 0 }; // this is always 0
     pProvider->session = hal_session_handle_t { 0 };
 
     // connect to the HSM
-    hal_error_t err;
-    if ((err = hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm", &conn_context)) != HAL_OK)
+    if (g_bConnectionOpen == FALSE)
     {
-        status = NTE_DEVICE_NOT_FOUND;
-        goto cleanup;
-    }
-
-    // save the context
-    pProvider->conn_context = conn_context;
-
-    if ((err = hal_rpc_login(pProvider->conn_context, pProvider->client, HAL_USER_NORMAL, DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()))) != HAL_OK)
-    {
-        status = NTE_VALIDATION_FAILED;
-        goto cleanup;
+        status = ConnectToHSM(pProvider->client);
+        if (status != ERROR_SUCCESS)
+        {
+            goto cleanup;
+        }
+        else
+        {
+            g_bConnectionOpen = TRUE;
+        }
     }
 
 	//Assign the output value.
 	*phProvider = (NCRYPT_PROV_HANDLE)pProvider;
 	pProvider = NULL;
 	status = ERROR_SUCCESS;
+
+    ++g_dwNumOpenProviders;
+
 cleanup:
 	if (pProvider)
 	{
 		HeapFree(GetProcessHeap(), 0, pProvider);
 	}
-    if (status != ERROR_SUCCESS && NULL != conn_context)
+    if (status != ERROR_SUCCESS &&
+        g_bConnectionOpen == TRUE &&
+        g_dwNumOpenProviders == 0)
     {
-        hal_rpc_client_transport_close(conn_context);
+        // we had an error there shouldn't be any open providers
+        CloseConnectionToHSM();
+
+        g_bConnectionOpen = FALSE;
     }
 	return status;
 }
@@ -298,7 +305,7 @@ SECURITY_STATUS WINAPI OpenKey(
     attr_name.value = name_buffer;
     attr_name.length = strlen(name_buffer);
 
-    result = hal_rpc_pkey_match(pProvider->conn_context, pProvider->client, pProvider->session,
+    result = hal_rpc_pkey_match(pProvider->client, pProvider->session,
         HAL_KEY_TYPE_NONE, HAL_CURVE_NONE,
         0,
         0,
@@ -317,14 +324,14 @@ SECURITY_STATUS WINAPI OpenKey(
         hal_pkey_handle_t handle;
         hal_key_type_t key_type = HAL_KEY_TYPE_NONE;
         hal_curve_name_t key_curve = HAL_CURVE_NONE;
-        result = hal_rpc_pkey_open(pProvider->conn_context, pProvider->client, pProvider->session, &handle, &uuid_list[i]);
+        result = hal_rpc_pkey_open(pProvider->client, pProvider->session, &handle, &uuid_list[i]);
         if (result != HAL_OK)
         {
             Status = NTE_INTERNAL_ERROR;
             goto cleanup;
         }
 
-        hal_rpc_pkey_get_key_type(pProvider->conn_context, handle, &key_type);
+        hal_rpc_pkey_get_key_type(handle, &key_type);
         if (key_type == HAL_KEY_TYPE_EC_PRIVATE || key_type == HAL_KEY_TYPE_RSA_PRIVATE) pKey->hPrivateKey = handle;
         else if (key_type == HAL_KEY_TYPE_EC_PUBLIC || key_type == HAL_KEY_TYPE_RSA_PUBLIC) pKey->hPublicKey = handle;
         else
@@ -343,7 +350,7 @@ SECURITY_STATUS WINAPI OpenKey(
         }
         else if (key_type == HAL_KEY_TYPE_EC_PRIVATE)
         {
-            hal_rpc_pkey_get_key_curve(pProvider->conn_context, handle, &key_curve);
+            hal_rpc_pkey_get_key_curve(handle, &key_curve);
             if (key_curve == HAL_CURVE_P256)
             {
                 CopyMemory(pCurrent, BCRYPT_ECDSA_P256_ALGORITHM, sizeof(BCRYPT_ECDSA_P256_ALGORITHM));
@@ -378,8 +385,8 @@ cleanup:
 
     if (pKey)
     {
-        if (pKey->hPrivateKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPrivateKey);
-        if (pKey->hPublicKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPublicKey);
+        if (pKey->hPrivateKey.handle != 0) hal_rpc_pkey_close(pKey->hPrivateKey);
+        if (pKey->hPublicKey.handle != 0) hal_rpc_pkey_close(pKey->hPublicKey);
 
         HeapFree(GetProcessHeap(), 0, pKey);
     }
@@ -979,8 +986,8 @@ SECURITY_STATUS WINAPI DeleteKey(
     }
 
     // delete the key
-    hal_rpc_pkey_delete(pProvider->conn_context, pKey->hPrivateKey);
-    hal_rpc_pkey_delete(pProvider->conn_context, pKey->hPublicKey);
+    hal_rpc_pkey_delete(pKey->hPrivateKey);
+    hal_rpc_pkey_delete(pKey->hPublicKey);
 
     HeapFree(GetProcessHeap(), 0, pKey);
 
@@ -1016,10 +1023,17 @@ SECURITY_STATUS WINAPI FreeProvider(
 		goto cleanup;
 	}
 
-    // log out and disconnect
-    hal_rpc_logout(pProvider->conn_context, pProvider->client);
+    // reduce the number of providers
+    --g_dwNumOpenProviders;
 
-    hal_rpc_client_transport_close(pProvider->conn_context);
+    if (g_bConnectionOpen == TRUE &&
+        g_dwNumOpenProviders == 0)
+    {
+        // we had an error there shouldn't be any open providers
+        CloseConnectionToHSM();
+
+        g_bConnectionOpen = FALSE;
+    }
 
 	// Free context.
 	if (pProvider->pszContext)
@@ -1086,8 +1100,8 @@ SECURITY_STATUS WINAPI FreeKey(
     //
     if (pKey)
     {
-        if (pKey->hPrivateKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPrivateKey);
-        if (pKey->hPublicKey.handle != 0) hal_rpc_pkey_close(pProvider->conn_context, pKey->hPublicKey);
+        if (pKey->hPrivateKey.handle != 0) hal_rpc_pkey_close(pKey->hPrivateKey);
+        if (pKey->hPublicKey.handle != 0) hal_rpc_pkey_close(pKey->hPublicKey);
 
         HeapFree(GetProcessHeap(), 0, pKey);
     }
@@ -1571,7 +1585,7 @@ SECURITY_STATUS WINAPI EnumKeys(
 
             // we search key pairs so only search on private keys because a key/pair is one key
             // grab upto 64 keys at a time instead of one at a time
-            check_hal_enum_keys(hal_rpc_pkey_match(pProvider->conn_context, pProvider->client, pProvider->session,
+            check_hal_enum_keys(hal_rpc_pkey_match(pProvider->client, pProvider->session,
                 HAL_KEY_TYPE_NONE, HAL_CURVE_NONE,
                 0,
                 0,
@@ -1614,22 +1628,21 @@ SECURITY_STATUS WINAPI EnumKeys(
         }
 
         // open the key
-        check_hal_enum_keys(hal_rpc_pkey_open(pProvider->conn_context,
-            pProvider->client,
+        check_hal_enum_keys(hal_rpc_pkey_open(pProvider->client,
             pProvider->session,
             &found_handle,
             &found_uuid));
 
         close_handle = TRUE;
 
-        check_hal_enum_keys(hal_rpc_pkey_get_key_type(pProvider->conn_context, found_handle, &found_type));
+        check_hal_enum_keys(hal_rpc_pkey_get_key_type(found_handle, &found_type));
 
         if (found_type != HAL_KEY_TYPE_EC_PRIVATE && found_type != HAL_KEY_TYPE_RSA_PRIVATE)
         {
             // only search private keys
             pEnumState->current_key++;
 
-            hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+            hal_rpc_pkey_close(found_handle);
             close_handle = FALSE;
 
             // try again
@@ -1637,21 +1650,21 @@ SECURITY_STATUS WINAPI EnumKeys(
         }
         else if (found_type == HAL_KEY_TYPE_EC_PRIVATE)
         {
-            check_hal_enum_keys(hal_rpc_pkey_get_key_curve(pProvider->conn_context, found_handle, &found_curve));
+            check_hal_enum_keys(hal_rpc_pkey_get_key_curve(found_handle, &found_curve));
         }
 
-        check_hal_enum_keys(hal_rpc_pkey_get_key_flags(pProvider->conn_context, found_handle, &found_flags));
+        check_hal_enum_keys(hal_rpc_pkey_get_key_flags(found_handle, &found_flags));
 
         hal_pkey_attribute_t attr_get_name;
         attr_get_name.type = CKA_LABEL;
-        check_hal_enum_keys(hal_rpc_pkey_get_attributes(pProvider->conn_context, found_handle, &attr_get_name, 1, buffer, sizeof(buffer)));
+        check_hal_enum_keys(hal_rpc_pkey_get_attributes(found_handle, &attr_get_name, 1, buffer, sizeof(buffer)));
 
         if (attr_get_name.length == 0)
         {
             // no name so not compatible with CNG
             pEnumState->current_key++;
 
-            hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+            hal_rpc_pkey_close(found_handle);
             close_handle = FALSE;
 
             // try again
@@ -1664,7 +1677,7 @@ SECURITY_STATUS WINAPI EnumKeys(
             mbstowcs_s(&num_converted, found_name, temp_buf, sizeof(found_name) / sizeof(WCHAR));
         }
 
-        hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+        hal_rpc_pkey_close(found_handle);
         close_handle = FALSE;
 
         break;
@@ -1716,7 +1729,7 @@ cleanup:
     }
     if (NULL != pProvider && TRUE == close_handle)
     {
-        hal_rpc_pkey_close(pProvider->conn_context, found_handle);
+        hal_rpc_pkey_close(found_handle);
     }
 
 	return Status;

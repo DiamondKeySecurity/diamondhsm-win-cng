@@ -39,16 +39,16 @@
 
 /* Defined in slip.c - send/recv serial data with SLIP framing.
 */
-extern hal_error_t hal_slip_send_char(const void *con, const uint8_t c);
-extern hal_error_t hal_slip_send(const void *con, const uint8_t * const buf, const size_t len);
+extern hal_error_t hal_slip_send_char(const uint8_t c);
+extern hal_error_t hal_slip_send(const uint8_t * const buf, const size_t len);
 extern hal_error_t hal_slip_process_char(uint8_t c, uint8_t * const buf, size_t * const len, const size_t maxlen, int * const complete);
-extern hal_error_t hal_slip_recv_char(const void *con, uint8_t * const buf, size_t * const len, const size_t maxlen, int * const complete);
-extern hal_error_t hal_slip_recv(const void *con, uint8_t * const buf, size_t * const len, const size_t maxlen);
+extern hal_error_t hal_slip_recv_char(uint8_t * const buf, size_t * const len, const size_t maxlen, int * const complete);
+extern hal_error_t hal_slip_recv(uint8_t * const buf, size_t * const len, const size_t maxlen);
 
 /* Defined in rpc_serial.c - send/recv one byte over a serial connection.
 */
-extern hal_error_t hal_serial_send_char(const void *con, const uint8_t c);
-extern hal_error_t hal_serial_recv_char(const void *con, uint8_t * const c);
+extern hal_error_t hal_serial_send_char(const uint8_t c);
+extern hal_error_t hal_serial_recv_char(uint8_t * const c);
 
 #ifndef STM32F4XX
 extern hal_error_t hal_serial_init(const char * const device, const uint32_t speed);

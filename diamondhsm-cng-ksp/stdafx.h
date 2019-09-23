@@ -73,6 +73,8 @@
 extern "C"
 {
 #include "../cryptech-libhal/hal.h"
+#include "../cryptech-libhal/hal_internal.h"
+
 #include "pkcs11.h"
 #include "pkcs11-attributes.h"
 }
