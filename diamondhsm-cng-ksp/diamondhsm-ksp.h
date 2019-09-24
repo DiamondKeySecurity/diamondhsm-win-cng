@@ -46,25 +46,6 @@
 #define DKEY_KSP_RSA_MAX_LENGTH          4096            // maximal key length
 #define DKEY_KSP_RSA_INCREMENT           64              // increment of key length
 
-//property ID
-#define DKEY_KSP_IMPL_TYPE_PROPERTY                  1
-#define DKEY_KSP_MAX_NAME_LEN_PROPERTY               2
-#define DKEY_KSP_NAME_PROPERTY                       3
-#define DKEY_KSP_VERSION_PROPERTY                    4
-#define DKEY_KSP_SECURITY_DESCR_SUPPORT_PROPERTY     5
-#define DKEY_KSP_ALGORITHM_PROPERTY                  6
-#define DKEY_KSP_BLOCK_LENGTH_PROPERTY               7
-#define DKEY_KSP_EXPORT_POLICY_PROPERTY              8
-#define DKEY_KSP_KEY_USAGE_PROPERTY                  9
-#define DKEY_KSP_KEY_TYPE_PROPERTY                   10
-#define DKEY_KSP_LENGTH_PROPERTY                     11
-#define DKEY_KSP_LENGTHS_PROPERTY                    12
-#define DKEY_KSP_SECURITY_DESCR_PROPERTY             13
-#define DKEY_KSP_ALGORITHM_GROUP_PROPERTY            14
-#define DKEY_KSP_USE_CONTEXT_PROPERTY                15
-#define DKEY_KSP_UNIQUE_NAME_PROPERTY                16
-#define DKEY_KSP_UI_POLICY_PROPERTY                  17
-#define DKEY_KSP_WINDOW_HANDLE_PROPERTY              18
 //const
 #define MAXUSHORT                       0xffff
 #define MAX_NUM_PROPERTIES              100

@@ -37,8 +37,22 @@
 
 #include "targetver.h"
 
-//#define BEGIN_REQUIRES_WIN8MQ_CODE_FIX (a, b) ;
-//#define END_REQUIRES_WIN8MQ_CODE_FIX
+/*
+* Magic PKCS #11 macros that must be defined before including
+* pkcs11.h.  For now these are only the Unix versions, add others
+* later (which may require minor refactoring).
+*/
+
+#define CK_PTR                                          *
+#define CK_DEFINE_FUNCTION(returnType, name)            returnType name
+#define CK_DECLARE_FUNCTION(returnType, name)           returnType name
+#define CK_DECLARE_FUNCTION_POINTER(returnType, name)   returnType (* name)
+#define CK_CALLBACK_FUNCTION(returnType, name)          returnType (* name)
+#ifndef NULL_PTR
+#define NULL_PTR                                        NULL
+#endif
+
+
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:
@@ -52,6 +66,12 @@
 #include <ncrypt.h>
 #include <ncrypt_provider.h>
 #include <sslprovider.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <assert.h>
+#include <memory>
 
 #include "pkcs11-types.h"
 
@@ -60,4 +80,7 @@ extern "C"
 {
 #include "../cryptech-libhal/hal.h"
 #include "../cryptech-libhal/hal_internal.h"
+
+#include "pkcs11.h"
+#include "pkcs11-attributes.h"
 }

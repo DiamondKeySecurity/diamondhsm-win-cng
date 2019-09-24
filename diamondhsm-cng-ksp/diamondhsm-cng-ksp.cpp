@@ -115,8 +115,10 @@ SECURITY_STATUS WINAPI OpenProvider(
 {
 	SECURITY_STATUS status = NTE_INTERNAL_ERROR;
 	DKEY_KSP_PROVIDER *pProvider = NULL;
+    CK_SESSION_HANDLE hSession = 0;
 	DWORD cbLength = 0;
 	size_t cbProviderName = 0;
+    CK_RV pk11_result;
 	UNREFERENCED_PARAMETER(dwFlags);
 
 	// Validate input parameters.
@@ -172,6 +174,21 @@ SECURITY_STATUS WINAPI OpenProvider(
         }
     }
 
+    pk11_result = C_OpenSession(0, CKF_RW_SESSION | CKF_SERIAL_SESSION, NULL, NULL, &hSession);
+    if (pk11_result != CKR_OK)
+    {
+        status = NTE_INTERNAL_ERROR;
+        goto cleanup;
+    }
+    pProvider->session.handle = (uint32_t)hSession;
+
+    pk11_result = C_Login(hSession, CKU_USER, (CK_UTF8CHAR_PTR)DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()));
+    if (pk11_result != CKR_OK && pk11_result != CKR_USER_ALREADY_LOGGED_IN)
+    {
+        status = NTE_INTERNAL_ERROR;
+        goto cleanup;
+    }
+
 	//Assign the output value.
 	*phProvider = (NCRYPT_PROV_HANDLE)pProvider;
 	pProvider = NULL;
@@ -184,14 +201,21 @@ cleanup:
 	{
 		HeapFree(GetProcessHeap(), 0, pProvider);
 	}
-    if (status != ERROR_SUCCESS &&
-        g_bConnectionOpen == TRUE &&
-        g_dwNumOpenProviders == 0)
+    if (status != ERROR_SUCCESS)
     {
-        // we had an error there shouldn't be any open providers
-        CloseConnectionToHSM();
+        if (hSession != 0)
+        {
+            C_CloseSession(hSession);
+        }
 
-        g_bConnectionOpen = FALSE;
+        if (g_bConnectionOpen == TRUE &&
+            g_dwNumOpenProviders == 0)
+        {
+            // we had an error there shouldn't be any open providers
+            CloseConnectionToHSM();
+
+            g_bConnectionOpen = FALSE;
+        }
     }
 	return status;
 }
@@ -1022,6 +1046,8 @@ SECURITY_STATUS WINAPI FreeProvider(
 		Status = NTE_INVALID_HANDLE;
 		goto cleanup;
 	}
+
+    C_CloseSession((CK_SESSION_HANDLE)pProvider->session.handle);
 
     // reduce the number of providers
     --g_dwNumOpenProviders;
