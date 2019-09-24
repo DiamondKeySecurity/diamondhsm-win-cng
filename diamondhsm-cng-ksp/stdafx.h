@@ -78,10 +78,14 @@
 // cryptech-libhal
 extern "C"
 {
+#include "tfm.h"
+
 #include "../cryptech-libhal/hal.h"
 #include "../cryptech-libhal/hal_internal.h"
 
+#include "asn1_internal.h"
 #include "pkcs11.h"
 #include "pkcs11-attributes.h"
 #include "constants.h"
+#include "pkcs11-internal.h"
 }

@@ -113,6 +113,7 @@ void TestEnum(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
         }
     }
 
+    std::cout << "-----------------------------------------" << std::endl;
     status = 0;
     void *pEnumState = NULL;
     while (status == 0)
@@ -133,8 +134,8 @@ void TestEnum(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 
         pFunctionTable->FreeBuffer(pKeyName);
     }
+    std::cout << "-----------------------------------------" << std::endl;
     pFunctionTable->FreeBuffer(pEnumState);
-
     status = pFunctionTable->FreeProvider(phProvider);
     std::cout << "FreeProvider returned " << status << std::endl;
 }
@@ -229,7 +230,7 @@ char *tombsstring(const wchar_t *incoming, char *buffer, size_t buf_len)
     return buffer;
 }
 
-void TestPKEY(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
+void TestPKEY(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable, const wchar_t *key_name)
 {
     SECURITY_STATUS status;
     NCRYPT_PROV_HANDLE phProvider;
@@ -243,8 +244,8 @@ void TestPKEY(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
     status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
     std::cout << "OpenProvider returned " << status << std::endl;
 
-    status = pFunctionTable->OpenKey(phProvider, &hKey, TEXT("diamond-dr-ksk"), 0, 0);
-    std::cout << "OpenKey \"diamond - dr - ksk\" returned " << status << std::endl;
+    status = pFunctionTable->OpenKey(phProvider, &hKey, key_name, 0, 0);
+    std::cout << "OpenKey " << status << std::endl;
 
     // --------------------------------
     status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_NAME_PROPERTY, (PBYTE)&wstr_propertybuffer[0], sizeof(wstr_propertybuffer), &cbResult, 0);
@@ -334,6 +335,126 @@ void TestPKEY(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
     std::cout << "FreeProvider returned " << status << std::endl;
 }
 
+void TestPKEYGen(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
+{
+    SECURITY_STATUS status;
+    NCRYPT_PROV_HANDLE phProvider;
+    NCRYPT_KEY_HANDLE hKey;
+    WCHAR wstr_propertybuffer[512];
+    DWORD dwProperty;
+    DWORD cbResult;
+    char str_buffer1[512];
+    char str_buffer2[512];
+    const wchar_t *key_name = TEXT("aaaaaa-diamond-co-kr-ksk-ZZZZZ");
+
+    status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
+    std::cout << "OpenProvider returned " << status << std::endl;
+
+    status = pFunctionTable->CreatePersistedKey(phProvider, &hKey, TEXT("ECDSA_P256"), TEXT("aaa-ecdsa_test"), 0, 0);
+    std::cout << "CreatePersistedKey returned " << status << std::endl;
+    status = pFunctionTable->FreeKey(phProvider, hKey);
+    std::cout << "FreeKey returned " << status << std::endl;
+
+    status = pFunctionTable->CreatePersistedKey(phProvider, &hKey, TEXT("RSA"), key_name, 0, 0);
+    std::cout << "CreatePersistedKey returned " << status << std::endl;
+
+    //status = pFunctionTable->OpenKey(phProvider, &hKey, TEXT("diamond-dr-ksk"), 0, 0);
+    //std::cout << "OpenKey \"diamond - dr - ksk\" returned " << status << std::endl;
+
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_NAME_PROPERTY, (PBYTE)&wstr_propertybuffer[0], sizeof(wstr_propertybuffer), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_NAME_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << tombsstring(wstr_propertybuffer, str_buffer2, sizeof(str_buffer2)) << "; status == 0" << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_NAME_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_NAME_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_UNIQUE_NAME_PROPERTY, (PBYTE)&wstr_propertybuffer[0], sizeof(wstr_propertybuffer), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_UNIQUE_NAME_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << tombsstring(wstr_propertybuffer, str_buffer2, sizeof(str_buffer2)) << "; status == 0" << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_UNIQUE_NAME_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_UNIQUE_NAME_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_ALGORITHM_PROPERTY, (PBYTE)&wstr_propertybuffer[0], sizeof(wstr_propertybuffer), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_ALGORITHM_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << tombsstring(wstr_propertybuffer, str_buffer2, sizeof(str_buffer2)) << "; status == 0" << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_ALGORITHM_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_ALGORITHM_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_ALGORITHM_GROUP_PROPERTY, (PBYTE)&wstr_propertybuffer[0], sizeof(wstr_propertybuffer), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_ALGORITHM_GROUP_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << tombsstring(wstr_propertybuffer, str_buffer2, sizeof(str_buffer2)) << "; status == 0" << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_ALGORITHM_GROUP_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_ALGORITHM_GROUP_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_LENGTH_PROPERTY, (PBYTE)&dwProperty, sizeof(DWORD), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_LENGTH_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << dwProperty << "; status == " << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_LENGTH_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_LENGTH_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_EXPORT_POLICY_PROPERTY, (PBYTE)&dwProperty, sizeof(DWORD), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_EXPORT_POLICY_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << dwProperty << "; status == " << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_EXPORT_POLICY_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_EXPORT_POLICY_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_IMPL_TYPE_PROPERTY, (PBYTE)&dwProperty, sizeof(DWORD), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_IMPL_TYPE_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << dwProperty << "; status == " << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_IMPL_TYPE_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_IMPL_TYPE_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_KEY_USAGE_PROPERTY, (PBYTE)&dwProperty, sizeof(DWORD), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_KEY_USAGE_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << dwProperty << "; status == " << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_KEY_USAGE_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_KEY_USAGE_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_KEY_TYPE_PROPERTY, (PBYTE)&dwProperty, sizeof(DWORD), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_KEY_TYPE_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << dwProperty << "; status == " << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_KEY_TYPE_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_KEY_TYPE_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY, (PBYTE)&dwProperty, sizeof(DWORD), &cbResult, 0);
+    std::cout << "GetKeyProperty: " << tombsstring(NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY, str_buffer1, sizeof(str_buffer1)) <<
+        " returned " << dwProperty << "; status == " << status << "; cbResult ==" << cbResult << std::endl;
+
+    status = pFunctionTable->GetKeyProperty(phProvider, hKey, NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY, NULL, 0, &cbResult, 0);
+    std::cout << "GetKeyProperty (length only): " << tombsstring(NCRYPT_SECURITY_DESCR_SUPPORT_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << "; cbResult ==" << cbResult << std::endl;
+    // --------------------------------   
+    // --------------------------------
+    status = pFunctionTable->SetKeyProperty(phProvider, hKey, NCRYPT_KEY_TYPE_PROPERTY, NULL, 0, 0);
+    std::cout << "SetKeyProperty: " << tombsstring(NCRYPT_KEY_TYPE_PROPERTY, str_buffer1, sizeof(str_buffer1)) << " status == " << status << std::endl;
+
+    status = pFunctionTable->FreeKey(phProvider, hKey);
+    std::cout << "FreeKey returned " << status << std::endl;
+
+    std::cout << "Testing Enum Functions" << std::endl;
+    TestEnum(pFunctionTable);
+
+    std::cout << "--------------Testing PKEY Functions" << std::endl;
+    TestPKEY(pFunctionTable, key_name);
+
+    status = pFunctionTable->OpenKey(phProvider, &hKey, key_name, 0, 0);
+    std::cout << "OpenKey returned " << status << std::endl;
+
+    //status = pFunctionTable->DeleteKey(phProvider, hKey, 0);
+    //std::cout << "DeleteKey returned " << status << std::endl;
+
+    status = pFunctionTable->FreeProvider(phProvider);
+    std::cout << "FreeProvider returned " << status << std::endl;
+}
+
 void TestFunctions(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 {
     std::cout << "Testing Function Existence" << std::endl;
@@ -345,8 +466,8 @@ void TestFunctions(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
     std::cout << "Testing Algorithm Functions" << std::endl;
     TestAlgorithms(pFunctionTable);
 
-    std::cout << "Testing PKEY Functions" << std::endl;
-    TestPKEY(pFunctionTable);
+    std::cout << "Testing PKEYGen Functions" << std::endl;
+    TestPKEYGen(pFunctionTable);
 }
 
 int main()

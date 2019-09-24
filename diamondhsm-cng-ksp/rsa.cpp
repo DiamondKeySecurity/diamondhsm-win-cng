@@ -66,24 +66,6 @@
 * in a relatively type-safe manner before calling libtom.
 */
 #include "stdafx.h"
-#include "tfm.h"
-
-/*
-* Functions to strip const qualifiers from arguments to libtfm calls
-* in a relatively type-safe manner.  These don't really have anything
-* to do with ASN.1 per se, but all the code that needs them reads
-* this header file, so this is the simplest place to put them.
-*/
-
-static inline fp_int *unconst_fp_int(const fp_int * const arg)
-{
-    return (fp_int *)arg;
-}
-
-static inline uint8_t *unconst_uint8_t(const uint8_t * const arg)
-{
-    return (uint8_t *)arg;
-}
 
 #define MODEXPA7_OPERAND_BITS                   (4096)
 #define MODEXPA7_OPERAND_BYTES                  (MODEXPA7_OPERAND_BITS /  8)
@@ -124,6 +106,8 @@ extern "C"
             pC[HAL_RSA_MAX_OPERAND_LENGTH / 2], pF[HAL_RSA_MAX_OPERAND_LENGTH / 2],
             qC[HAL_RSA_MAX_OPERAND_LENGTH / 2], qF[HAL_RSA_MAX_OPERAND_LENGTH / 2];
     };
+
+    const size_t hal_rsa_key_t_size = sizeof(hal_rsa_key_t);
 }
 
 /*
@@ -165,4 +149,52 @@ hal_error_t hal_rsa_key_get_public_exponent(const hal_rsa_key_t * const key,
     uint8_t *res, size_t *res_len, const size_t res_max)
 {
     return extract_component(key, offsetof(hal_rsa_key_t, e), res, res_len, res_max);
+}
+
+hal_error_t hal_rsa_public_key_from_der(hal_rsa_key_t **key_,
+    void *keybuf, const size_t keybuf_len,
+    const uint8_t * const der, const size_t der_len)
+{
+    hal_rsa_key_t *key = (hal_rsa_key_t *)keybuf;
+
+    if (key_ == NULL || key == NULL || keybuf_len < sizeof(*key) || der == NULL)
+        return HAL_ERROR_BAD_ARGUMENTS;
+
+    memset(keybuf, 0, keybuf_len);
+
+    key->type = HAL_KEY_TYPE_RSA_PUBLIC;
+
+    const uint8_t *alg_oid = NULL, *null = NULL, *pubkey = NULL;
+    size_t         alg_oid_len, null_len, pubkey_len;
+    hal_error_t err;
+
+    if ((err = hal_asn1_decode_spki(&alg_oid, &alg_oid_len, &null, &null_len, &pubkey, &pubkey_len, der, der_len)) != HAL_OK)
+        return err;
+
+    if (null != NULL || null_len != 0 || alg_oid == NULL ||
+        alg_oid_len != hal_asn1_oid_rsaEncryption_len || memcmp(alg_oid, hal_asn1_oid_rsaEncryption, alg_oid_len) != 0)
+        return HAL_ERROR_ASN1_PARSE_FAILED;
+
+    size_t len, hlen, vlen;
+
+    if ((err = hal_asn1_decode_header(ASN1_SEQUENCE, pubkey, pubkey_len, &hlen, &vlen)) != HAL_OK)
+        return err;
+
+    const uint8_t * const pubkey_end = pubkey + hlen + vlen;
+    const uint8_t *d = pubkey + hlen;
+
+    if ((err = hal_asn1_decode_integer(key->n, d, &len, pubkey_end - d)) != HAL_OK)
+        return err;
+    d += len;
+
+    if ((err = hal_asn1_decode_integer(key->e, d, &len, pubkey_end - d)) != HAL_OK)
+        return err;
+    d += len;
+
+    if (d != pubkey_end)
+        return HAL_ERROR_ASN1_PARSE_FAILED;
+
+    *key_ = key;
+
+    return HAL_OK;
 }

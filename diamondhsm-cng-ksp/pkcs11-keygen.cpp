@@ -195,7 +195,7 @@ CK_RV DoKeyGen(CK_SESSION_HANDLE hSession,
     };
     CK_ATTRIBUTE *public_template = NULL;
     CK_ULONG public_attrcnt = 0, private_attrcnt = PRIVATE_ATTRS;
-    key_class_t keyclass = key_rsa;
+    key_class_t keyclass = keyclass_fromtext(algorithm);
 
     if (label == NULL)
         return CKR_ARGUMENTS_BAD;
@@ -240,7 +240,7 @@ CK_RV DoKeyGen(CK_SESSION_HANDLE hSession,
         case key_ecc:
             if (bits == 0)
                 bits = 256;
-            else if (bits != 256 && bits != 384 && bits != 521)
+            else if (bits != 256 && bits != 384)
             {
                 // "ECC keys only support bit sizes of 256, 384, and 521"
                 return CKR_KEY_SIZE_RANGE;
@@ -333,16 +333,8 @@ CK_RV DoKeyGen(CK_SESSION_HANDLE hSession,
         private_template, private_attrcnt,
         &publickey, &privatekey);
 
-    if (rv == CKR_OK)
-    {
-    }
-
 exit_search:
-    rv = C_FindObjectsFinal(hSession);
-    if (rv != CKR_OK) {
-        // "C_FindObjectsFinal: Error = 0x%.8lX\n", rv
-        error = 1;
-    }
+    C_FindObjectsFinal(hSession);
 
 exit_session:
     return rv;

@@ -162,18 +162,6 @@ private:
 };
 
 /*
-* PKCS #11 objects.  These are pretty simple, as they're really just
-* mappings from PKCS #11's naming scheme to libhal UUIDs, with a little
-* extra fun for PKCS #11 "session" objects.
-*/
-
-typedef struct p11_object {
-    CK_OBJECT_HANDLE  handle;             /* Object handle */
-    CK_SESSION_HANDLE session;            /* Associated session (if any) */
-    hal_uuid_t        uuid;               /* libhal key UUID */
-} p11_object_t;
-
-/*
 * PKCS #11 handle management.  PKCS #11 has two kinds of handles:
 * session handles and object handles.  We subdivide object handles
 * into token object handles (handles for objects which live on the
@@ -1107,7 +1095,7 @@ static p11_object_t *p11_object_by_uuid(const hal_uuid_t * const uuid)
 * Find an object given its handle.
 */
 
-static p11_object_t *p11_object_by_handle(const CK_OBJECT_HANDLE object_handle)
+p11_object_t *p11_object_by_handle(const CK_OBJECT_HANDLE object_handle)
 {
     if (handle_flavor(object_handle) != handle_flavor_session_object &&
         handle_flavor(object_handle) != handle_flavor_token_object)
@@ -1934,16 +1922,20 @@ static CK_RV generate_keypair_rsa_pkcs(p11_session_t *session,
             lose(CKR_FUNCTION_FAILED);
 
         size_t sizeof_der = hal_rpc_pkey_get_public_key_len(private_pkey);
+        size_t sizeof_keybuf = hal_rsa_key_t_size;
 
         uint8_t *der = new uint8_t[sizeof_der];
+        uint8_t *keybuf = new uint8_t[sizeof_keybuf];
 
         // link destruction to scope
         mem_deleter free_der(der);
+        mem_deleter free_kbuf(keybuf);
 
         size_t der_len, modulus_len;
         hal_rsa_key_t *key = NULL;
 
         if (!hal_check(hal_rpc_pkey_get_public_key(private_pkey, der, &der_len, sizeof_der)) ||
+            !hal_check(hal_rsa_public_key_from_der(&key, keybuf, sizeof_keybuf, der, der_len)) ||
             !hal_check(hal_rpc_pkey_load(p11_session_hal_client(session),
                 p11_session_hal_session(session),
                 &public_pkey, &public_uuid, der, der_len, public_flags)) ||
@@ -1969,7 +1961,7 @@ static CK_RV generate_keypair_rsa_pkcs(p11_session_t *session,
 
         extra[2].type = CKA_MODULUS;
         extra[2].value = modulus;
-        extra[1].length = modulus_len;
+        extra[2].length = modulus_len;
 
         if (!p11_attributes_set(private_pkey, pPrivateKeyTemplate, ulPrivateKeyAttributeCount,
             private_descriptor, extra, sizeof(extra) / sizeof(*extra)) ||
@@ -2051,7 +2043,7 @@ static CK_RV generate_keypair_ec(p11_session_t *session,
         // link destruction to scope
         mem_deleter free_der(der);
 
-        hal_ecdsa_key_t *key = NULL;
+        //hal_ecdsa_key_t *key = NULL;
         size_t der_len;
 
         if (!hal_check(hal_rpc_pkey_get_public_key(private_pkey, der, &der_len, sizeof_der)) ||
@@ -3363,7 +3355,8 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
     while (*pulObjectCount < ulMaxObjectCount &&
         (session->find_query_token || session->find_query_session)) {
         delete[] uuids;
-        uuids = new hal_uuid_t[ulMaxObjectCount - *pulObjectCount];
+        size_t result_max = (ulMaxObjectCount - *pulObjectCount);
+        uuids = new hal_uuid_t[result_max];
         handle_flavor_t flavor;
         hal_key_flags_t flags;
         unsigned n;
@@ -3383,7 +3376,7 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
             HAL_KEY_FLAG_TOKEN, flags,
             session->find_query, session->find_query_n,
             &session->find_query_state,
-            uuids, &n, sizeof(uuids) / sizeof(*uuids),
+            uuids, &n, result_max,
             &session->find_query_previous_uuid));
         if (rv != CKR_OK)
             goto fail;
@@ -3395,7 +3388,7 @@ CK_RV C_FindObjects(CK_SESSION_HANDLE hSession,
             ++*pulObjectCount;
         }
 
-        if (n == sizeof(uuids) / sizeof(*uuids)) {
+        if (n == result_max) {
             memcpy(&session->find_query_previous_uuid, &uuids[n - 1],
                 sizeof(session->find_query_previous_uuid));
         }
