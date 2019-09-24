@@ -459,7 +459,104 @@ SECURITY_STATUS WINAPI CreatePersistedKey(
 	_In_    DWORD   dwLegacyKeySpec,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider = NULL;
+    CK_RV result = CKR_OK;
+    CK_SESSION_HANDLE hSession = 0;
+    char algorithm[32];
+    char label[256];
+    size_t num_chars_converted;
+    CK_ULONG bits;
+    CK_ULONG expsize = 0;
+    CK_OBJECT_HANDLE hPublicKey = 0;
+    CK_OBJECT_HANDLE hPrivateKey = 0;
+
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    //
+    // Validate parameters
+    //
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if ((phKey == NULL) || (pszKeyName == NULL))
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    *phKey = NULL;
+
+    hSession = (CK_SESSION_HANDLE)pProvider->session.handle;
+    if (hSession == 0)
+    {
+        Status = NTE_BAD_PROVIDER;
+        goto cleanup;
+    }
+
+    if (0 != wcstombs_s(&num_chars_converted, algorithm, pszAlgId, sizeof(algorithm) / sizeof(char)))
+    {
+        Status = NTE_BAD_ALGID;
+        goto cleanup;
+    }
+    
+    if (_strnicmp(algorithm, "RSA", strlen("RSA")) == 0)
+    {
+        size_t alglen = strlen(algorithm);
+
+        // set as the default RSA key len
+        bits = DKEYRSAKeyLen();
+
+        // allow key size to be set
+        if (alglen > strlen("RSA_"))
+        {
+            char *size = &algorithm[strlen("RSA_")];
+            bits = atoi(size);
+            if (bits < 1024 || bits > 4096)
+            {
+                Status = NTE_BAD_LEN;
+                goto cleanup;
+            }
+        }
+    }
+    else if (_strnicmp(algorithm, "ECDSA", strlen("ECDSA")) == 0)
+    {
+        size_t alglen = strlen(algorithm);
+        if (alglen == strlen("ECDSA"))
+        {
+            bits = 256; // default size
+        }
+        else if (alglen = strlen("ECDSA_P256"))
+        {
+            if (strcmp(algorithm, "ECDSA_P256") == 0) bits = 256;
+            else if (strcmp(algorithm, "ECDSA_P384") == 0) bits = 384;
+            else if (strcmp(algorithm, "ECDSA_P521") == 0) bits = 521;
+            else bits = 0;
+        }
+    }
+
+    if (0 != wcstombs_s(&num_chars_converted, label, pszKeyName, sizeof(label) / sizeof(char)))
+    {
+        Status = NTE_BAD_ALGID;
+        goto cleanup;
+    }
+
+    // Use PKCS11 to generate the key
+    result = DoKeyGen(hSession, algorithm, bits, (CK_CHAR *)label, expsize, &hPublicKey, &hPrivateKey);
+    if (result != CKR_OK)
+    {
+        Status = NTE_INTERNAL_ERROR;
+        goto cleanup;
+    }
+
+    // open and return the key that we just generated
+    return OpenKey(hProvider, phKey, pszKeyName, dwLegacyKeySpec, dwFlags);
+
+cleanup:
+    return Status;
 }
 
 // Retrieves the value of a named property for a key storage provider. It is implemented by your

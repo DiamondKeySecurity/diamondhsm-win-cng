@@ -163,9 +163,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="asn1_internal.h" />
+    <ClInclude Include="constants.h" />
     <ClInclude Include="diamondhsm-ksp.h" />
+    <ClInclude Include="ecdsa_curves.h" />
     <ClInclude Include="internal.h" />
     <ClInclude Include="pkcs11-attributes.h" />
+    <ClInclude Include="pkcs11-internal.h" />
     <ClInclude Include="pkcs11.h" />
     <ClInclude Include="pkcs11-types.h" />
     <ClInclude Include="pkcs11f.h" />
@@ -175,11 +179,14 @@
     <ClInclude Include="tfm.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="asn1.cpp" />
     <ClCompile Include="diamondhsm-cng-ksp.cpp" />
     <ClCompile Include="dkey_ksp_helper.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="diamondhsm-cng-ksp.h" />
+    <ClCompile Include="ecdsa.cpp" />
     <ClCompile Include="internal.cpp" />
+    <ClCompile Include="pkcs11-keygen.cpp" />
     <ClCompile Include="pkcs11.cpp" />
     <ClCompile Include="rsa.cpp" />
     <ClCompile Include="stdafx.cpp">
