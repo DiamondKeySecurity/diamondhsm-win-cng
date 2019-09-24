@@ -68,3 +68,11 @@ char *uuid_to_string(hal_uuid_t uuid, char *buffer, size_t buffer_count);
 
 SECURITY_STATUS ConnectToHSM(hal_client_handle_t client);
 void CloseConnectionToHSM();
+
+CK_RV DoKeyGen(CK_SESSION_HANDLE hSession,
+    char *algorithm,
+    CK_ULONG bits,
+    CK_CHAR *label,
+    CK_ULONG expsize,
+    CK_OBJECT_HANDLE_PTR phPublicKey,
+    CK_OBJECT_HANDLE_PTR phPrivateKey);

@@ -163,6 +163,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="constants.h" />
     <ClInclude Include="diamondhsm-ksp.h" />
     <ClInclude Include="internal.h" />
     <ClInclude Include="pkcs11-attributes.h" />
@@ -180,6 +181,7 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="diamondhsm-cng-ksp.h" />
     <ClCompile Include="internal.cpp" />
+    <ClCompile Include="pkcs11-keygen.cpp" />
     <ClCompile Include="pkcs11.cpp" />
     <ClCompile Include="rsa.cpp" />
     <ClCompile Include="stdafx.cpp">

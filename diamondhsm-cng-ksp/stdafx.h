@@ -83,4 +83,5 @@ extern "C"
 
 #include "pkcs11.h"
 #include "pkcs11-attributes.h"
+#include "constants.h"
 }
