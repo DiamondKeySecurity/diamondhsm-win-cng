@@ -335,6 +335,51 @@ void TestPKEY(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable, const wchar_t *
     std::cout << "FreeProvider returned " << status << std::endl;
 }
 
+void TestSign(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
+{
+    SECURITY_STATUS status;
+    NCRYPT_PROV_HANDLE phProvider;
+    NCRYPT_KEY_HANDLE hKey;
+    WCHAR wstr_propertybuffer[512];
+    DWORD dwProperty;
+    DWORD cbResult;
+    char str_buffer1[512];
+    char str_buffer2[512];
+
+    const uint8_t sha256_double_digest[] = { /* 32 bytes */
+        0x24, 0x8d, 0x6a, 0x61, 0xd2, 0x06, 0x38, 0xb8, 0xe5, 0xc0, 0x26, 0x93,
+        0x0c, 0x3e, 0x60, 0x39, 0xa3, 0x3c, 0xe4, 0x59, 0x64, 0xff, 0x21, 0x67,
+        0xf6, 0xec, 0xed, 0xd4, 0x19, 0xdb, 0x06, 0xc1
+    };
+    uint8_t signature[1024];
+
+    const wchar_t *key_name = TEXT("signer-key-ZZZZZ");
+
+    status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
+    std::cout << "OpenProvider returned " << status << std::endl;
+
+    status = pFunctionTable->CreatePersistedKey(phProvider, &hKey, TEXT("RSA"), key_name, 0, 0);
+    std::cout << "CreatePersistedKey returned " << status << std::endl;
+
+    status = pFunctionTable->SignHash(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, sizeof(signature), &cbResult, 0);
+    std::cout << "SignHash returned " << status << std::endl;
+
+    status = pFunctionTable->VerifySignature(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, cbResult, 0);
+    std::cout << "VerifySignature returned " << status << std::endl;
+
+    // break sig and try again
+    signature[0] = 0;
+    signature[1] = 0;
+    status = pFunctionTable->VerifySignature(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, cbResult, 0);
+    std::cout << "(Break test)VerifySignature returned " << status << std::endl;
+
+    status = pFunctionTable->DeleteKey(phProvider, hKey, 0);
+    std::cout << "DeleteKey returned " << status << std::endl;
+
+    status = pFunctionTable->FreeProvider(phProvider);
+    std::cout << "FreeProvider returned " << status << std::endl;
+}
+
 void TestPKEYGen(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 {
     SECURITY_STATUS status;
@@ -448,8 +493,8 @@ void TestPKEYGen(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
     status = pFunctionTable->OpenKey(phProvider, &hKey, key_name, 0, 0);
     std::cout << "OpenKey returned " << status << std::endl;
 
-    //status = pFunctionTable->DeleteKey(phProvider, hKey, 0);
-    //std::cout << "DeleteKey returned " << status << std::endl;
+    status = pFunctionTable->DeleteKey(phProvider, hKey, 0);
+    std::cout << "DeleteKey returned " << status << std::endl;
 
     status = pFunctionTable->FreeProvider(phProvider);
     std::cout << "FreeProvider returned " << status << std::endl;
@@ -457,17 +502,25 @@ void TestPKEYGen(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 
 void TestFunctions(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
 {
+    std::cout << "**************************************************" << std::endl;
     std::cout << "Testing Function Existence" << std::endl;
 	TestFunctionsExist(pFunctionTable);
 
+    std::cout << "**************************************************" << std::endl;
     std::cout << "Testing Enum Functions" << std::endl;
     TestEnum(pFunctionTable);
 
+    std::cout << "**************************************************" << std::endl;
     std::cout << "Testing Algorithm Functions" << std::endl;
     TestAlgorithms(pFunctionTable);
 
+    std::cout << "**************************************************" << std::endl;
     std::cout << "Testing PKEYGen Functions" << std::endl;
     TestPKEYGen(pFunctionTable);
+
+    std::cout << "**************************************************" << std::endl;
+    std::cout << "Testing Signing Functions" << std::endl;
+    TestSign(pFunctionTable);
 }
 
 int main()

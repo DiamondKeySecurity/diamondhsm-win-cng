@@ -2053,7 +2053,70 @@ SECURITY_STATUS WINAPI SignHash(
 	_Out_   DWORD * pcbResult,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS     Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider;
+    DKEY_KSP_KEY *pKey = NULL;
+    hal_error_t rpc_result;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pKey->phProvider != pProvider)
+    {
+        Status = NTE_BAD_PROVIDER;
+        goto cleanup;
+    }
+
+    if (NULL == pbHashValue || 0 == cbHashValue)
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    size_t signature_len;
+    if (!get_signature_len(pKey->hPrivateKey, &signature_len))
+    {
+        Status = NTE_BAD_KEYSET;
+        goto cleanup;
+    }
+    *pcbResult = signature_len;
+    if (NULL == pbSignature)
+    {
+        return ERROR_SUCCESS;
+    }
+
+    if (cbSignature < signature_len)
+    {
+        Status = NTE_BUFFER_TOO_SMALL;
+        goto cleanup;
+    }
+
+    rpc_result = hal_rpc_pkey_sign(pKey->hPrivateKey, hal_hash_handle_none, pbHashValue, cbHashValue, pbSignature, &signature_len, cbSignature);
+    if (rpc_result != HAL_OK)
+    {
+        Status = NTE_INTERNAL_ERROR;
+    }
+    else
+    {
+        Status = ERROR_SUCCESS;
+    }
+
+cleanup:
+    return Status;
 }
 
 // Verifies a signature. It is implemented by your key storage provider (KSP) and called by the NCryptVerifySignature function.
@@ -2097,7 +2160,52 @@ SECURITY_STATUS WINAPI VerifySignature(
 	_In_    DWORD   cbSignature,
 	_In_    DWORD   dwFlags)
 {
-	return NTE_NOT_SUPPORTED;
+    SECURITY_STATUS     Status = NTE_INTERNAL_ERROR;
+    DKEY_KSP_PROVIDER *pProvider;
+    DKEY_KSP_KEY *pKey = NULL;
+    hal_error_t rpc_result;
+
+    // Validate input parameters.
+    pProvider = DKEYKspValidateProvHandle(hProvider);
+
+    if (pProvider == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    pKey = DKEYKspValidateKeyHandle(hKey);
+
+    if (pKey == NULL)
+    {
+        Status = NTE_INVALID_HANDLE;
+        goto cleanup;
+    }
+
+    if (pKey->phProvider != pProvider)
+    {
+        Status = NTE_BAD_PROVIDER;
+        goto cleanup;
+    }
+
+    if (NULL == pbHashValue || 0 == cbHashValue)
+    {
+        Status = NTE_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    rpc_result = hal_rpc_pkey_verify(pKey->hPublicKey, hal_hash_handle_none, pbHashValue, cbHashValue, pbSignature, cbSignature);
+    if (rpc_result != HAL_OK)
+    {
+        Status = NTE_INTERNAL_ERROR;
+    }
+    else
+    {
+        Status = ERROR_SUCCESS;
+    }
+
+cleanup:
+    return Status;
 }
 
 // Displays a user interface and prompts the user for information. It is implemented by your key storage provider (KSP) and called by the key storage router when you return NTE_UI_REQUIRED from an implemented (NCryptxxxFn) function.

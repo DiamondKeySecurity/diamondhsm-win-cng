@@ -44,7 +44,7 @@ LPCSTR DKEYKspGetHostAddr()
 
 DWORD DKEYRSAKeyLen()
 {
-    return 2048;
+    return 1024;
 }
 
 // buffer must be at least 40 characters

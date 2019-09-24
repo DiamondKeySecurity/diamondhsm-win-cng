@@ -160,213 +160,213 @@ fail:
 	return 0;
 }
 
-//static int test_rsa_testvec(const rsa_tc_t * const tc, hal_key_flags_t flags)
-//{
-//	const hal_client_handle_t client = { HAL_HANDLE_NONE };
-//	const hal_session_handle_t session = { HAL_HANDLE_NONE };
-//	hal_pkey_handle_t private_key = { HAL_HANDLE_NONE };
-//	hal_pkey_handle_t public_key = { HAL_HANDLE_NONE };
-//	hal_error_t err;
-//	size_t len;
-//
-//	assert(tc != NULL);
-//
-//	{
-//		flags |= HAL_KEY_FLAG_USAGE_DIGITALSIGNATURE;
-//
-//		printf("Starting %lu-bit RSA test vector tests, flags 0x%lx\n",
-//			(unsigned long)tc->size, (unsigned long)flags);
-//
-//		size_t sizeof_tc_keybuf = hal_rsa_key_t_size;
-//		uint8_t *tc_keybuf = new uint8_t[hal_rsa_key_t_size];
-//		std::unique_ptr<uint8_t> free_tc_keybuf(tc_keybuf);
-//
-//		hal_rsa_key_t *tc_key = NULL;
-//
-//		if ((err = hal_rsa_key_load_private(&tc_key,
-//			tc_keybuf, sizeof_tc_keybuf,
-//			tc->n.val, tc->n.len,
-//			tc->e.val, tc->e.len,
-//			tc->d.val, tc->d.len,
-//			tc->p.val, tc->p.len,
-//			tc->q.val, tc->q.len,
-//			tc->u.val, tc->u.len,
-//			tc->dP.val, tc->dP.len,
-//			tc->dQ.val, tc->dQ.len)) != HAL_OK)
-//			lose("Could not load RSA private key from test vector: %s\n", hal_error_string(err));
-//
-//		hal_uuid_t private_name, public_name;
-//
-//		size_t sizeof_private_der = hal_rsa_private_key_to_der_len(tc_key);
-//		size_t sizeof_public_der = hal_rsa_public_key_to_der_len(tc_key);
-//
-//		uint8_t *private_der = new uint8_t[sizeof_private_der];
-//		uint8_t *public_der = new uint8_t[sizeof_public_der];
-//
-//		std::unique_ptr<uint8_t> free_private_der(private_der);
-//		std::unique_ptr<uint8_t> free_public_der(public_der);
-//
-//		if ((err = hal_rsa_private_key_to_der(tc_key, private_der, &len, sizeof_private_der)) != HAL_OK)
-//			lose("Could not DER encode private key from test vector: %s\n", hal_error_string(err));
-//
-//		assert(len == sizeof_private_der);
-//
-//		if ((err = hal_rpc_pkey_load(client, session, &private_key, &private_name,
-//			private_der, sizeof_private_der, flags)) != HAL_OK)
-//			lose("Could not load private key into RPC: %s\n", hal_error_string(err));
-//
-//		if ((err = hal_rsa_public_key_to_der(tc_key, public_der, &len, sizeof_public_der)) != HAL_OK)
-//			lose("Could not DER encode public key from test vector: %s\n", hal_error_string(err));
-//
-//		assert(len == sizeof_public_der);
-//
-//		if ((err = hal_rpc_pkey_load(client, session, &public_key, &public_name,
-//			public_der, sizeof_public_der, flags)) != HAL_OK)
-//			lose("Could not load public key into RPC: %s\n", hal_error_string(err));
-//
-//		size_t sizeof_sig = tc->s.len;
-//		uint8_t *sig = new uint8_t[tc->s.len];
-//		std::unique_ptr<uint8_t> free_sig(sig);
-//
-//		/*
-//		* Raw RSA test cases include PKCS #1.5 padding, we need to drill down to the DigestInfo.
-//		*/
-//		assert(tc->m.len > 4 && tc->m.val[0] == 0x00 && tc->m.val[1] == 0x01 && tc->m.val[2] == 0xff);
-//		const uint8_t *digestinfo = (const uint8_t *)memchr((tc->m.val + 2), 0x00, tc->m.len - 2);
-//		assert(digestinfo != NULL);
-//		const size_t digestinfo_len = tc->m.val + tc->m.len - ++digestinfo;
-//
-//		if ((err = hal_rpc_pkey_sign(private_key, hal_hash_handle_none,
-//			digestinfo, digestinfo_len, sig, &len, sizeof_sig)) != HAL_OK)
-//			lose("Could not sign: %s\n", hal_error_string(err));
-//
-//		if (tc->s.len != len || memcmp(sig, tc->s.val, tc->s.len) != 0)
-//			lose("MISMATCH\n");
-//
-//		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
-//			digestinfo, digestinfo_len, tc->s.val, tc->s.len)) != HAL_OK)
-//			lose("Could not verify: %s\n", hal_error_string(err));
-//
-//		if (!test_attributes(private_key, &private_name, flags) || !test_attributes(public_key, &public_name, flags))
-//			goto fail;
-//
-//		if ((err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
-//			lose("Could not delete private key: %s\n", hal_error_string(err));
-//
-//		if ((err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
-//			lose("Could not delete public key: %s\n", hal_error_string(err));
-//
-//		printf("OK\n");
-//		return 1;
-//	}
-//
-//fail:
-//	if (private_key.handle != HAL_HANDLE_NONE &&
-//		(err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
-//		printf("Warning: could not delete private key: %s\n", hal_error_string(err));
-//
-//	if (public_key.handle != HAL_HANDLE_NONE &&
-//		(err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
-//		printf("Warning: could not delete public key: %s\n", hal_error_string(err));
-//
-//	return 0;
-//}
-//
-//static int test_ecdsa_testvec(const ecdsa_tc_t * const tc, hal_key_flags_t flags)
-//{
-//	const hal_client_handle_t client = { HAL_HANDLE_NONE };
-//	const hal_session_handle_t session = { HAL_HANDLE_NONE };
-//	hal_pkey_handle_t private_key = { HAL_HANDLE_NONE };
-//	hal_pkey_handle_t public_key = { HAL_HANDLE_NONE };
-//	hal_error_t err;
-//	size_t len;
-//
-//	assert(tc != NULL);
-//
-//	{
-//		flags |= HAL_KEY_FLAG_USAGE_DIGITALSIGNATURE;
-//
-//		printf("Starting ECDSA %s test vector tests, flags 0x%lx\n",
-//			ecdsa_curve_to_string(tc->curve), (unsigned long)flags);
-//
-//		size_t sizeof_tc_keybuf = hal_ecdsa_key_t_size;
-//		uint8_t *tc_keybuf = new uint8_t[sizeof_tc_keybuf];
-//		std::unique_ptr<uint8_t> free_tc_keybuf(tc_keybuf);
-//		hal_ecdsa_key_t *tc_key = NULL;
-//
-//		if ((err = hal_ecdsa_key_load_private(&tc_key, tc_keybuf, sizeof_tc_keybuf, tc->curve,
-//			tc->Qx, tc->Qx_len, tc->Qy, tc->Qy_len,
-//			tc->d, tc->d_len)) != HAL_OK)
-//			lose("Could not load ECDSA private key from test vector: %s\n", hal_error_string(err));
-//
-//		hal_uuid_t private_name, public_name;
-//
-//		size_t sizeof_private_der = hal_ecdsa_private_key_to_der_len(tc_key);
-//		uint8_t *private_der = new uint8_t[sizeof_private_der];
-//		std::unique_ptr<uint8_t> free_private_der(private_der);
-//
-//		size_t sizeof_public_der = hal_ecdsa_public_key_to_der_len(tc_key);
-//		uint8_t *public_der = new uint8_t[sizeof_public_der];
-//		std::unique_ptr<uint8_t> free_public_der(public_der);
-//
-//		if ((err = hal_ecdsa_private_key_to_der(tc_key, private_der, &len, sizeof(private_der))) != HAL_OK)
-//			lose("Could not DER encode private key from test vector: %s\n", hal_error_string(err));
-//
-//		assert(len == sizeof_private_der);
-//
-//		if ((err = hal_rpc_pkey_load(client, session, &private_key, &private_name,
-//			private_der, sizeof_private_der, flags)) != HAL_OK)
-//			lose("Could not load private key into RPC: %s\n", hal_error_string(err));
-//
-//		if ((err = hal_ecdsa_public_key_to_der(tc_key, public_der, &len, sizeof_public_der)) != HAL_OK)
-//			lose("Could not DER encode public key from test vector: %s\n", hal_error_string(err));
-//
-//		assert(len == sizeof_public_der);
-//
-//		if ((err = hal_rpc_pkey_load(client, session, &public_key, &public_name,
-//			public_der, sizeof(public_der), flags)) != HAL_OK)
-//			lose("Could not load public key into RPC: %s\n", hal_error_string(err));
-//
-//		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
-//			tc->H, tc->H_len, tc->sig, tc->sig_len)) != HAL_OK)
-//			lose("Could not verify signature from test vector: %s\n", hal_error_string(err));
-//
-//		size_t sizeof_sig = tc->sig_len + 4;
-//		uint8_t *sig = new uint8_t[sizeof_sig];
-//		std::unique_ptr<uint8_t> free_sig(sig);
-//
-//		if ((err = hal_rpc_pkey_sign(private_key, hal_hash_handle_none,
-//			tc->H, tc->H_len, sig, &len, sizeof_sig)) != HAL_OK)
-//			lose("Could not sign: %s\n", hal_error_string(err));
-//
-//		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
-//			tc->H, tc->H_len, sig, len)) != HAL_OK)
-//			lose("Could not verify own signature: %s\n", hal_error_string(err));
-//
-//		if (!test_attributes(private_key, &private_name, flags) || !test_attributes(public_key, &public_name, flags))
-//			goto fail;
-//
-//		if ((err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
-//			lose("Could not delete private key: %s\n", hal_error_string(err));
-//
-//		if ((err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
-//			lose("Could not delete public key: %s\n", hal_error_string(err));
-//
-//		printf("OK\n");
-//		return 1;
-//	}
-//
-//fail:
-//	if (private_key.handle != HAL_HANDLE_NONE &&
-//		(err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
-//		printf("Warning: could not delete private key: %s\n", hal_error_string(err));
-//
-//	if (public_key.handle != HAL_HANDLE_NONE &&
-//		(err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
-//		printf("Warning: could not delete public key: %s\n", hal_error_string(err));
-//
-//	return 0;
-//}
+static int test_rsa_testvec(const rsa_tc_t * const tc, hal_key_flags_t flags)
+{
+	const hal_client_handle_t client = { HAL_HANDLE_NONE };
+	const hal_session_handle_t session = { HAL_HANDLE_NONE };
+	hal_pkey_handle_t private_key = { HAL_HANDLE_NONE };
+	hal_pkey_handle_t public_key = { HAL_HANDLE_NONE };
+	hal_error_t err;
+	size_t len;
+
+	assert(tc != NULL);
+
+	{
+		flags |= HAL_KEY_FLAG_USAGE_DIGITALSIGNATURE;
+
+		printf("Starting %lu-bit RSA test vector tests, flags 0x%lx\n",
+			(unsigned long)tc->size, (unsigned long)flags);
+
+		size_t sizeof_tc_keybuf = hal_rsa_key_t_size;
+		uint8_t *tc_keybuf = new uint8_t[hal_rsa_key_t_size];
+		std::unique_ptr<uint8_t> free_tc_keybuf(tc_keybuf);
+
+		hal_rsa_key_t *tc_key = NULL;
+
+		if ((err = hal_rsa_key_load_private(&tc_key,
+			tc_keybuf, sizeof_tc_keybuf,
+			tc->n.val, tc->n.len,
+			tc->e.val, tc->e.len,
+			tc->d.val, tc->d.len,
+			tc->p.val, tc->p.len,
+			tc->q.val, tc->q.len,
+			tc->u.val, tc->u.len,
+			tc->dP.val, tc->dP.len,
+			tc->dQ.val, tc->dQ.len)) != HAL_OK)
+			lose("Could not load RSA private key from test vector: %s\n", hal_error_string(err));
+
+		hal_uuid_t private_name, public_name;
+
+		size_t sizeof_private_der = hal_rsa_private_key_to_der_len(tc_key);
+		size_t sizeof_public_der = hal_rsa_public_key_to_der_len(tc_key);
+
+		uint8_t *private_der = new uint8_t[sizeof_private_der];
+		uint8_t *public_der = new uint8_t[sizeof_public_der];
+
+		std::unique_ptr<uint8_t> free_private_der(private_der);
+		std::unique_ptr<uint8_t> free_public_der(public_der);
+
+		if ((err = hal_rsa_private_key_to_der(tc_key, private_der, &len, sizeof_private_der)) != HAL_OK)
+			lose("Could not DER encode private key from test vector: %s\n", hal_error_string(err));
+
+		assert(len == sizeof_private_der);
+
+		if ((err = hal_rpc_pkey_load(client, session, &private_key, &private_name,
+			private_der, sizeof_private_der, flags)) != HAL_OK)
+			lose("Could not load private key into RPC: %s\n", hal_error_string(err));
+
+		if ((err = hal_rsa_public_key_to_der(tc_key, public_der, &len, sizeof_public_der)) != HAL_OK)
+			lose("Could not DER encode public key from test vector: %s\n", hal_error_string(err));
+
+		assert(len == sizeof_public_der);
+
+		if ((err = hal_rpc_pkey_load(client, session, &public_key, &public_name,
+			public_der, sizeof_public_der, flags)) != HAL_OK)
+			lose("Could not load public key into RPC: %s\n", hal_error_string(err));
+
+		size_t sizeof_sig = tc->s.len;
+		uint8_t *sig = new uint8_t[tc->s.len];
+		std::unique_ptr<uint8_t> free_sig(sig);
+
+		/*
+		* Raw RSA test cases include PKCS #1.5 padding, we need to drill down to the DigestInfo.
+		*/
+		assert(tc->m.len > 4 && tc->m.val[0] == 0x00 && tc->m.val[1] == 0x01 && tc->m.val[2] == 0xff);
+		const uint8_t *digestinfo = (const uint8_t *)memchr((tc->m.val + 2), 0x00, tc->m.len - 2);
+		assert(digestinfo != NULL);
+		const size_t digestinfo_len = tc->m.val + tc->m.len - ++digestinfo;
+
+		if ((err = hal_rpc_pkey_sign(private_key, hal_hash_handle_none,
+			digestinfo, digestinfo_len, sig, &len, sizeof_sig)) != HAL_OK)
+			lose("Could not sign: %s\n", hal_error_string(err));
+
+		if (tc->s.len != len || memcmp(sig, tc->s.val, tc->s.len) != 0)
+			lose("MISMATCH\n");
+
+		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
+			digestinfo, digestinfo_len, tc->s.val, tc->s.len)) != HAL_OK)
+			lose("Could not verify: %s\n", hal_error_string(err));
+
+		if (!test_attributes(private_key, &private_name, flags) || !test_attributes(public_key, &public_name, flags))
+			goto fail;
+
+		if ((err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
+			lose("Could not delete private key: %s\n", hal_error_string(err));
+
+		if ((err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
+			lose("Could not delete public key: %s\n", hal_error_string(err));
+
+		printf("OK\n");
+		return 1;
+	}
+
+fail:
+	if (private_key.handle != HAL_HANDLE_NONE &&
+		(err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
+		printf("Warning: could not delete private key: %s\n", hal_error_string(err));
+
+	if (public_key.handle != HAL_HANDLE_NONE &&
+		(err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
+		printf("Warning: could not delete public key: %s\n", hal_error_string(err));
+
+	return 0;
+}
+
+static int test_ecdsa_testvec(const ecdsa_tc_t * const tc, hal_key_flags_t flags)
+{
+	const hal_client_handle_t client = { HAL_HANDLE_NONE };
+	const hal_session_handle_t session = { HAL_HANDLE_NONE };
+	hal_pkey_handle_t private_key = { HAL_HANDLE_NONE };
+	hal_pkey_handle_t public_key = { HAL_HANDLE_NONE };
+	hal_error_t err;
+	size_t len;
+
+	assert(tc != NULL);
+
+	{
+		flags |= HAL_KEY_FLAG_USAGE_DIGITALSIGNATURE;
+
+		printf("Starting ECDSA %s test vector tests, flags 0x%lx\n",
+			ecdsa_curve_to_string(tc->curve), (unsigned long)flags);
+
+		size_t sizeof_tc_keybuf = hal_ecdsa_key_t_size;
+		uint8_t *tc_keybuf = new uint8_t[sizeof_tc_keybuf];
+		std::unique_ptr<uint8_t> free_tc_keybuf(tc_keybuf);
+		hal_ecdsa_key_t *tc_key = NULL;
+
+		if ((err = hal_ecdsa_key_load_private(&tc_key, tc_keybuf, sizeof_tc_keybuf, tc->curve,
+			tc->Qx, tc->Qx_len, tc->Qy, tc->Qy_len,
+			tc->d, tc->d_len)) != HAL_OK)
+			lose("Could not load ECDSA private key from test vector: %s\n", hal_error_string(err));
+
+		hal_uuid_t private_name, public_name;
+
+		size_t sizeof_private_der = hal_ecdsa_private_key_to_der_len(tc_key);
+		uint8_t *private_der = new uint8_t[sizeof_private_der];
+		std::unique_ptr<uint8_t> free_private_der(private_der);
+
+		size_t sizeof_public_der = hal_ecdsa_public_key_to_der_len(tc_key);
+		uint8_t *public_der = new uint8_t[sizeof_public_der];
+		std::unique_ptr<uint8_t> free_public_der(public_der);
+
+		if ((err = hal_ecdsa_private_key_to_der(tc_key, private_der, &len, sizeof(private_der))) != HAL_OK)
+			lose("Could not DER encode private key from test vector: %s\n", hal_error_string(err));
+
+		assert(len == sizeof_private_der);
+
+		if ((err = hal_rpc_pkey_load(client, session, &private_key, &private_name,
+			private_der, sizeof_private_der, flags)) != HAL_OK)
+			lose("Could not load private key into RPC: %s\n", hal_error_string(err));
+
+		if ((err = hal_ecdsa_public_key_to_der(tc_key, public_der, &len, sizeof_public_der)) != HAL_OK)
+			lose("Could not DER encode public key from test vector: %s\n", hal_error_string(err));
+
+		assert(len == sizeof_public_der);
+
+		if ((err = hal_rpc_pkey_load(client, session, &public_key, &public_name,
+			public_der, sizeof(public_der), flags)) != HAL_OK)
+			lose("Could not load public key into RPC: %s\n", hal_error_string(err));
+
+		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
+			tc->H, tc->H_len, tc->sig, tc->sig_len)) != HAL_OK)
+			lose("Could not verify signature from test vector: %s\n", hal_error_string(err));
+
+		size_t sizeof_sig = tc->sig_len + 4;
+		uint8_t *sig = new uint8_t[sizeof_sig];
+		std::unique_ptr<uint8_t> free_sig(sig);
+
+		if ((err = hal_rpc_pkey_sign(private_key, hal_hash_handle_none,
+			tc->H, tc->H_len, sig, &len, sizeof_sig)) != HAL_OK)
+			lose("Could not sign: %s\n", hal_error_string(err));
+
+		if ((err = hal_rpc_pkey_verify(public_key, hal_hash_handle_none,
+			tc->H, tc->H_len, sig, len)) != HAL_OK)
+			lose("Could not verify own signature: %s\n", hal_error_string(err));
+
+		if (!test_attributes(private_key, &private_name, flags) || !test_attributes(public_key, &public_name, flags))
+			goto fail;
+
+		if ((err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
+			lose("Could not delete private key: %s\n", hal_error_string(err));
+
+		if ((err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
+			lose("Could not delete public key: %s\n", hal_error_string(err));
+
+		printf("OK\n");
+		return 1;
+	}
+
+fail:
+	if (private_key.handle != HAL_HANDLE_NONE &&
+		(err = hal_rpc_pkey_delete(private_key)) != HAL_OK)
+		printf("Warning: could not delete private key: %s\n", hal_error_string(err));
+
+	if (public_key.handle != HAL_HANDLE_NONE &&
+		(err = hal_rpc_pkey_delete(public_key)) != HAL_OK)
+		printf("Warning: could not delete public key: %s\n", hal_error_string(err));
+
+	return 0;
+}
 
 static int test_rsa_generate(const rsa_tc_t * const tc, hal_key_flags_t flags)
 {

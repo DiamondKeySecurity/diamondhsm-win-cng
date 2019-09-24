@@ -2259,7 +2259,7 @@ static void digest_cleanup(hal_hash_handle_t *handle)
 * Compute the length of a signature based on the key.
 */
 
-static int get_signature_len(const hal_pkey_handle_t pkey,
+int get_signature_len(const hal_pkey_handle_t pkey,
     size_t *signature_len)
 {
     assert(signature_len != NULL);

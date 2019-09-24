@@ -13,3 +13,9 @@ typedef struct p11_object {
 } p11_object_t;
 
 p11_object_t *p11_object_by_handle(const CK_OBJECT_HANDLE object_handle);
+
+/*
+* Compute the length of a signature based on the key.
+*/
+
+int get_signature_len(const hal_pkey_handle_t pkey, size_t *signature_len);
