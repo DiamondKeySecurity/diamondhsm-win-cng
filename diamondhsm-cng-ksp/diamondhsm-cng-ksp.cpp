@@ -2088,7 +2088,7 @@ SECURITY_STATUS WINAPI SignHash(
     }
 
     size_t signature_len;
-    if (!get_signature_len(pKey->hPrivateKey, &signature_len))
+    if (!get_signature_len(pKey->hPublicKey, &signature_len))
     {
         Status = NTE_BAD_KEYSET;
         goto cleanup;

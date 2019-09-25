@@ -353,28 +353,46 @@ void TestSign(NCRYPT_KEY_STORAGE_FUNCTION_TABLE *pFunctionTable)
     };
     uint8_t signature[1024];
 
-    const wchar_t *key_name = TEXT("signer-key-ZZZZZ");
+    for (int i = 0; i < 2; ++i)
+    {
+        if (i == 0)
+        {
+            std::cout << "Testing RSA signing ----------------------" << std::endl;
+            const wchar_t *key_name = TEXT("signer-key-ZZZZZ-rsa");
 
-    status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
-    std::cout << "OpenProvider returned " << status << std::endl;
+            status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
+            std::cout << "OpenProvider returned " << status << std::endl;
 
-    status = pFunctionTable->CreatePersistedKey(phProvider, &hKey, TEXT("RSA"), key_name, 0, 0);
-    std::cout << "CreatePersistedKey returned " << status << std::endl;
+            status = pFunctionTable->CreatePersistedKey(phProvider, &hKey, TEXT("RSA"), key_name, 0, 0);
+            std::cout << "CreatePersistedKey returned " << status << std::endl;
+        }
+        else
+        {
+            std::cout << "Testing ECDSA signing ----------------------" << std::endl;
+            const wchar_t *key_name = TEXT("signer-key-ZZZZZ-ecdsa");
 
-    status = pFunctionTable->SignHash(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, sizeof(signature), &cbResult, 0);
-    std::cout << "SignHash returned " << status << std::endl;
+            status = pFunctionTable->OpenProvider(&phProvider, DKEY_KSP_PROVIDER_NAME, 0U);
+            std::cout << "OpenProvider returned " << status << std::endl;
 
-    status = pFunctionTable->VerifySignature(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, cbResult, 0);
-    std::cout << "VerifySignature returned " << status << std::endl;
+            status = pFunctionTable->CreatePersistedKey(phProvider, &hKey, TEXT("ECDSA_P256"), key_name, 0, 0);
+            std::cout << "CreatePersistedKey returned " << status << std::endl;
+        }
 
-    // break sig and try again
-    signature[0] = 0;
-    signature[1] = 0;
-    status = pFunctionTable->VerifySignature(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, cbResult, 0);
-    std::cout << "(Break test)VerifySignature returned " << status << std::endl;
+        status = pFunctionTable->SignHash(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, sizeof(signature), &cbResult, 0);
+        std::cout << "SignHash returned " << status << std::endl;
 
-    status = pFunctionTable->DeleteKey(phProvider, hKey, 0);
-    std::cout << "DeleteKey returned " << status << std::endl;
+        status = pFunctionTable->VerifySignature(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, cbResult, 0);
+        std::cout << "VerifySignature returned " << status << std::endl;
+
+        // break sig and try again
+        signature[0] = 0;
+        signature[1] = 0;
+        status = pFunctionTable->VerifySignature(phProvider, hKey, NULL, (PBYTE)sha256_double_digest, sizeof(sha256_double_digest), signature, cbResult, 0);
+        std::cout << "(Break test)VerifySignature returned " << status << std::endl;
+
+        status = pFunctionTable->DeleteKey(phProvider, hKey, 0);
+        std::cout << "DeleteKey returned " << status << std::endl;
+    }
 
     status = pFunctionTable->FreeProvider(phProvider);
     std::cout << "FreeProvider returned " << status << std::endl;
@@ -530,8 +548,11 @@ int main()
 	BOOL fFreeResult, fRunTimeLinkSuccess = FALSE;
 
 	// Get a handle to the DLL module.
-
-	hinstLib = LoadLibrary(TEXT("diamondhsm-cng-ksp.dll"));
+#ifdef _WIN64
+    hinstLib = LoadLibrary(TEXT("diamondhsm-cng-ksp_x64.dll"));
+#else
+    hinstLib = LoadLibrary(TEXT("diamondhsm-cng-ksp_Win32.dll"));
+#endif
 
 	// If the handle is valid, try to get the function address.
 
