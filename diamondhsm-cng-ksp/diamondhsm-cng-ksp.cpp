@@ -2197,7 +2197,7 @@ SECURITY_STATUS WINAPI VerifySignature(
     rpc_result = hal_rpc_pkey_verify(pKey->hPublicKey, hal_hash_handle_none, pbHashValue, cbHashValue, pbSignature, cbSignature);
     if (rpc_result != HAL_OK)
     {
-        Status = NTE_INTERNAL_ERROR;
+        Status = NTE_BAD_SIGNATURE;
     }
     else
     {
