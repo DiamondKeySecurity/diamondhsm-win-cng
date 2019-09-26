@@ -62,6 +62,7 @@ wmain(
     {
         if ((_wcsicmp(argv[1], L"-register") == 0))
         {
+            // register by default
             RegisterProvider();
         }
         else if ((_wcsicmp(argv[1], L"-unregister") == 0))
@@ -104,7 +105,11 @@ DisplayUsage()
 
 // File name of sample key storage provider's binary. *NO* path.
 //
-#define SAMPLEKSP_BINARY       L"diamondhsm-cng-ksp_Win32.dll"
+#ifdef _WIN64
+#define DKEY_KSP_BINARY       L"diamondhsm-cng-ksp_x64.dll"
+#else
+#define DKEY_KSP_BINARY       L"diamondhsm-cng-ksp_Win32.dll"
+#endif
 
 //
 // An array of algorithm names, all belonging to the
@@ -138,7 +143,7 @@ PCRYPT_INTERFACE_REG AlgorithmClasses[1] = {
 // Definition of the provider's user-mode binary...
 //
 CRYPT_IMAGE_REG SampleKspImage = {
-    (PWSTR)SAMPLEKSP_BINARY,                   // File name of the sample KSP binary
+    (PWSTR)DKEY_KSP_BINARY,                   // File name of the sample KSP binary
     1,                                  // Number of algorithm classes the binary supports
     AlgorithmClasses                    // List of all algorithm classes available
 };
