@@ -26,6 +26,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.md = README.md
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "diamond-hsm_ksp_config", "diamond-hsm_ksp_config\diamond-hsm_ksp_config.vcxproj", "{240B2E00-7F9C-47CE-80D7-87F08E4FC657}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -66,6 +68,14 @@ Global
 		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x64.Build.0 = Release|x64
 		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x86.ActiveCfg = Release|Win32
 		{E6794244-CDAA-40F5-8071-D67C7ED57E51}.Release|x86.Build.0 = Release|Win32
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Debug|x64.ActiveCfg = Debug|x64
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Debug|x64.Build.0 = Debug|x64
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Debug|x86.ActiveCfg = Debug|Win32
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Debug|x86.Build.0 = Debug|Win32
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Release|x64.ActiveCfg = Release|x64
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Release|x64.Build.0 = Release|x64
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Release|x86.ActiveCfg = Release|Win32
+		{240B2E00-7F9C-47CE-80D7-87F08E4FC657}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
