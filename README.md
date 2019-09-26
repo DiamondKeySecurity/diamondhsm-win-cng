@@ -26,3 +26,8 @@ The generated DLL exports a working PKCS #11 interface that has been
 tested with OpenSC. The Diamond-HSM does not automatically set
 the CKA_CLASS attribute. The Linux and Windows PKCS #11 projects
 need to be updated to add this attribute.
+
+------------------------------------------------
+Binaries
+------------------------------------------------
+Prebuilt binaries and installation instructions can be found in the "Binaries and Installation" folder.

@@ -1,0 +1,15 @@
+Diamond-HSM Cryptography API: Next Generation DLL Install
+
+The DLL used is based on the installation computer's platform type. 32-bit  platforms should use the files ending in "_Win32" and 64-bit platforms should 
+use the files ending in "_x64".
+
+The latest binaries can be found at https://github.com/DiamondKeySecurity/diamondhsm-win-cng/tree/master/Binaries%20and%20Installation
+
+Installation instructions:
+- Copy the target DLL ("diamond-hsm-cng-ksp_Win32.dll" or "diamond-hsm-cng-ksp_x64") files to the "%System Root%\System32" folder. In most installations, 
+this will be the "C:\Windows\System32" folder.
+
+- From the command prompt run the configuration program ("diamond-hsm_ksp_config_Win32.exe" or "diamond-hsm_ksp_config_x64.exe") to register the 
+DLL with windows. The command prompt will need to be opened using administrator privileges.
+
+- The "certutil -csplist" command can be used from the command prompt to verify installation.
