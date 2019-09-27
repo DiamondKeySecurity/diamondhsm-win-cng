@@ -2472,7 +2472,9 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
     * Initialize libhal RPC channel.
     */
 
-    if (!hal_check(hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(), "dks-hsm")) != HAL_OK)
+    char ipaddr_buffer[256];
+
+    if (!hal_check(hal_rpc_client_transport_init_ip(DKEYKspGetHostAddr(ipaddr_buffer, sizeof(ipaddr_buffer)), "dks-hsm")) != HAL_OK)
     {
         lose(CKR_GENERAL_ERROR);
     }

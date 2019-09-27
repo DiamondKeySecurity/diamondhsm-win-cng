@@ -35,6 +35,8 @@
 void RegisterProvider();
 void UnRegisterProvider();
 void EnumProviders();
+void SetPin(LPCWSTR pin);
+void SetIpAddress(LPCWSTR pin);
 
 
 
@@ -60,18 +62,26 @@ wmain(
 {
     if (argc > 1)
     {
-        if ((_wcsicmp(argv[1], L"-register") == 0))
+        if ((argc == 2) && (_wcsicmp(argv[1], L"-register") == 0))
         {
             // register by default
             RegisterProvider();
         }
-        else if ((_wcsicmp(argv[1], L"-unregister") == 0))
+        else if ((argc == 2) && (_wcsicmp(argv[1], L"-unregister") == 0))
         {
             UnRegisterProvider();
         }
-        else if ((_wcsicmp(argv[1], L"-enum") == 0))
+        else if ((argc == 2) && (_wcsicmp(argv[1], L"-enum") == 0))
         {
             EnumProviders();
+        }
+        else if ((argc == 3) && (_wcsicmp(argv[1], L"-pin") == 0))
+        {
+            SetPin(argv[2]);
+        }
+        else if ((argc == 3) && (_wcsicmp(argv[1], L"-ipaddress") == 0))
+        {
+            SetIpAddress(argv[2]);
         }
         else
         {
@@ -90,7 +100,7 @@ wmain(
 void
 DisplayUsage()
 {
-    wprintf(L"Usage: diamond-hsm_ksp_config -enum | -register | -unregister\n");
+    wprintf(L"Usage: diamond-hsm_ksp_config -enum | -register | -unregister | -ipaddress <ipaddress> | -pin <user pin>\n");
     exit(1);
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -286,6 +296,61 @@ UnRegisterProvider()
     }
 }
 ///////////////////////////////////////////////////////////////////////////////
+bool CreateKeyIfNotExist(HKEY parent, LPWSTR subkey, PHKEY phkey)
+{
+    HKEY key;
+    DWORD ret;
 
+    ret = RegOpenKeyEx(parent, subkey, 0, KEY_ALL_ACCESS, &key);
+    if (ret != ERROR_SUCCESS)
+    {
+        ret = RegCreateKey(parent, subkey, &key);
+        if (ret != ERROR_SUCCESS) return false;
+    }
 
+    *phkey = key;
+    return true;
+}
+
+void SetPin(LPCWSTR pin)
+{
+    HKEY hKey;
+    DWORD ret;
+
+    if (CreateKeyIfNotExist(HKEY_CURRENT_USER, (LPWSTR)DKEY_KSP_REGISTRY_KEY, &hKey) == false)
+    {
+        std::cout << "Unable to open registry key." << std::endl;
+        return;
+    }
+
+    ret = RegSetValueEx(hKey, DKEY_KSP_REGISTRY_PIN, 0, REG_SZ, (const BYTE *)pin, (wcslen(pin) + 1) * sizeof(WCHAR));
+    if (ret != ERROR_SUCCESS)
+    {
+        std::cout << "Unable to set registry value." << std::endl;
+        return;
+    }
+
+    RegCloseKey(hKey);
+}
+
+void SetIpAddress(LPCWSTR ipaddress)
+{
+    HKEY hKey;
+    DWORD ret;
+
+    if (CreateKeyIfNotExist(HKEY_CURRENT_USER, (LPWSTR)DKEY_KSP_REGISTRY_KEY, &hKey) == false)
+    {
+        std::cout << "Unable to open registry key." << std::endl;
+        return;
+    }
+
+    ret = RegSetValueEx(hKey, DKEY_KSP_REGISTRY_IPADDR, 0, REG_SZ, (const BYTE *)ipaddress, (wcslen(ipaddress) + 1) * sizeof(WCHAR));
+    if (ret != ERROR_SUCCESS)
+    {
+        std::cout << "Unable to set registry value." << std::endl;
+        return;
+    }
+
+    RegCloseKey(hKey);
+}
 

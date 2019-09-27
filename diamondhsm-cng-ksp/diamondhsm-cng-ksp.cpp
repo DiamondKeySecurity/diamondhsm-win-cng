@@ -182,7 +182,10 @@ SECURITY_STATUS WINAPI OpenProvider(
     }
     pProvider->session.handle = (uint32_t)hSession;
 
-    pk11_result = C_Login(hSession, CKU_USER, (CK_UTF8CHAR_PTR)DKEYKspGetUserPin(), strlen(DKEYKspGetUserPin()));
+    char pin_buffer[256];
+    DKEYKspGetUserPin(pin_buffer, sizeof(pin_buffer) / sizeof(char));
+
+    pk11_result = C_Login(hSession, CKU_USER, (CK_UTF8CHAR_PTR)pin_buffer, strlen(pin_buffer));
     if (pk11_result != CKR_OK && pk11_result != CKR_USER_ALREADY_LOGGED_IN)
     {
         status = NTE_INTERNAL_ERROR;

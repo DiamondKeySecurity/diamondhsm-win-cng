@@ -12,4 +12,10 @@ this will be the "C:\Windows\System32" folder.
 - From the command prompt run the configuration program ("diamond-hsm_ksp_config_Win32.exe" or "diamond-hsm_ksp_config_x64.exe") to register the 
 DLL with windows. The command prompt will need to be opened using administrator privileges.
 
+- After the HSM has been registered with the operating system, the IP address of the PKCS #11 user PIN must be set using the configuration program,
+"diamondhsm_ksp_config_Win32.exe" or "diamond-hsm_ksp_config_x64.exe". This information will be saved in the registry under the current user.
+
+        diamond-hsm_ksp_config_x64.exe -pin <user pin/password>
+        diamond-hsm_ksp_config_x64.exe -ipaddress <ip address of the HSM>
+
 - The "certutil -csplist" command can be used from the command prompt to verify installation.

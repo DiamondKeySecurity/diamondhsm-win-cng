@@ -32,14 +32,30 @@
 #include "internal.h"
 #include "pkcs11.h"
 
-LPCSTR DKEYKspGetUserPin()
+LPCSTR DKEYKspGetUserPin(char *buffer, const size_t buffer_len)
 {
-	return "1234";
+    WCHAR regbuffer[128];
+    DWORD cbBuffer = sizeof(regbuffer), ret;
+    size_t num_converted;
+    ret = RegGetValue(HKEY_CURRENT_USER, DKEY_KSP_REGISTRY_KEY, DKEY_KSP_REGISTRY_PIN, RRF_RT_REG_SZ, NULL, regbuffer, &cbBuffer);
+    if (ret != ERROR_SUCCESS) return NULL;
+
+    wcstombs_s(&num_converted, buffer, buffer_len, regbuffer, buffer_len);
+
+    return buffer;
 }
 
-LPCSTR DKEYKspGetHostAddr()
+LPCSTR DKEYKspGetHostAddr(char *buffer, const size_t buffer_len)
 {
-	return "10.1.10.9";
+    WCHAR regbuffer[128];
+    DWORD cbBuffer = sizeof(regbuffer), ret;
+    size_t num_converted;
+    ret = RegGetValue(HKEY_CURRENT_USER, DKEY_KSP_REGISTRY_KEY, DKEY_KSP_REGISTRY_IPADDR, RRF_RT_REG_SZ, NULL, regbuffer, &cbBuffer);
+    if (ret != ERROR_SUCCESS) return NULL;
+
+    wcstombs_s(&num_converted, buffer, buffer_len, regbuffer, buffer_len);
+
+    return buffer;
 }
 
 DWORD DKEYRSAKeyLen()

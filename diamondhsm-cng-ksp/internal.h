@@ -51,8 +51,8 @@ struct KeyMatchData
     uint32_t state;
 };
 
-LPCSTR DKEYKspGetUserPin();
-LPCSTR DKEYKspGetHostAddr();
+LPCSTR DKEYKspGetUserPin(char *buffer, const size_t buffer_len);
+LPCSTR DKEYKspGetHostAddr(char *buffer, const size_t buffer_len);
 DWORD DKEYRSAKeyLen();
 
 SECURITY_STATUS NormalizeNteStatus(__in NTSTATUS NtStatus);

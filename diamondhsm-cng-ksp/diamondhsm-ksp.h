@@ -38,6 +38,9 @@
 #define DKEY_KSP_VERSION 0x00010000                         //version of the DKEY KSP
 #define DKEY_KSP_SUPPORT_SECURITY_DESCRIPTOR   0x00000001             //This DKEY KSP supports security descriptor
 #define DKEY_KSP_PROVIDER_NAME           L"Diamond Key Security Key Storage Provider" //name of the DKEY KSP provider
+#define DKEY_KSP_REGISTRY_KEY            L"Software\\Diamond Key Security\\Diamond-HSM\\KSP"
+#define DKEY_KSP_REGISTRY_PIN            L"USER-PIN"
+#define DKEY_KSP_REGISTRY_IPADDR         L"HSM-IPADDR"
 #define DKEY_KSP_PROVIDER_MAGIC          0x53504C50      // SPLP
 #define DKEY_KSP_KEY_MAGIC               0x53504C4b      // SPLK
 #define DKEY_KSP_RSA_ALGID               1               // Algorithm ID RSA
